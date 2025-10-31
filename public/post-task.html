@@ -324,7 +324,7 @@
                     fetch('/api/config')
                         .then(r => r.json())
                         .then(cfg => { 
-                            galliToken = cfg.galliMapsApiKey || 'urle63a1458-7833-4b82-b946-19e4ef1f1138';
+                            galliToken = cfg.galliMapsApiKey || 'url-e63a1458-7833-4b82-b946-19e4ef1f1138';
                         })
                         .finally(() => setTimeout(initMap, 100));
                 } else {
