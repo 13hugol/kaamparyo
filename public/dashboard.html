@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html class="dark" lang="en">
+<head>
+    <meta charset="utf-8"/>
+    <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+    <title>KaamParyo - Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Outlined" rel="stylesheet"/>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,typography"></script>
+    <script src="https://gallimap.com/static/dist/js/gallimaps.vector.min.latest.js"></script>
+    <script src="https://cdn.socket.io/4.6.0/socket.io.min.js"></script>
+    <style>
+        #map { height: 500px; width: 100%; }
+        .task-card { transition: all 0.3s; }
+        .task-card:hover { transform: translateY(-2px); box-shadow: 0 10px 20px rgba(0,0,0,0.2); }
+    </style>
+</head>
+<body class="bg-gray-900 text-white font-['Poppins']">
+    <nav class="bg-gray-800 p-4 shadow-lg">
+        <div class="container mx-auto flex justify-between items-center">
+            <h1 class="text-2xl font-bold text-yellow-400">KaamParyo</h1>
+            <div class="flex gap-4">
+                <a href="post-task.html" class="bg-yellow-400 text-gray-900 px-4 py-2 rounded-lg font-semibold hover:bg-yellow-300">Post Task</a>
+                <button id="logoutBtn" class="bg-red-600 px-4 py-2 rounded-lg hover:bg-red-700">Logout</button>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mx-auto p-6">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- Map Section -->
+            <div class="lg:col-span-2">
+                <div class="bg-gray-800 rounded-xl p-6 shadow-xl">
+                    <h2 class="text-xl font-bold mb-4">Nearby Tasks</h2>
+                    <div id="map" class="rounded-lg"></div>
+                </div>
+            </div>
+
+            <!-- Tasks List -->
+            <div class="bg-gray-800 rounded-xl p-6 shadow-xl">
+                <h2 class="text-xl font-bold mb-4">Available Tasks</h2>
+                <div id="tasksList" class="space-y-4 max-h-[500px] overflow-y-auto">
+                    <p class="text-gray-400">Loading tasks...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- My Tasks Section -->
+        <div class="mt-6 bg-gray-800 rounded-xl p-6 shadow-xl">
+            <h2 class="text-xl font-bold mb-4">My Tasks</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <h3 class="font-semibold mb-2 text-yellow-400">Posted by Me</h3>
+                    <div id="myPostedTasks" class="space-y-2">
+                        <p class="text-gray-400">No tasks posted yet</p>
+                    </div>
+                </div>
+                <div>
+                    <h3 class="font-semibold mb-2 text-green-400">Accepted by Me</h3>
+                    <div id="myAcceptedTasks" class="space-y-2">
+                        <p class="text-gray-400">No tasks accepted yet</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let map, galliToken, currentUser, socket;
+        let userLocation = { lat: 27.7172, lng: 85.3240 }; // Kathmandu default
+        let markers = [];
+
+        // Initialize
+        async function init() {
+            const token = localStorage.getItem('token');
+            if (!token) {
+                window.location.href = '/';
+                return;
+            }
+
+            try {
+                // Get config
+                const configRes = await fetch('/api/config');
+                const config = await configRes.json();
+                galliToken = config.galliMapsApiKey;
+
+                // Get user
+                const userRes = await fetch('/auth/me', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const userData = await userRes.json();
+                currentUser = userData.user;
+
+                // Get user location
+                if (navigator.geolocation) {
+                    navigator.geolocation.getCurrentPosition(pos => {
+                        userLocation = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+                        initMap();
+                        loadNearbyTasks();
+                    }, () => {
+                        initMap();
+                        loadNearbyTasks();
+                    });
+                } else {
+                    initMap();
+                    loadNearbyTasks();
+                }
+
+                loadMyTasks();
+                initSocket();
+            } catch (e) {
+                console.error('Init error:', e);
+                alert('Failed to load dashboard');
+            }
+        }
+
+        // Initialize Galli Maps Vector Plugin
+        function initMap() {
+            const galliMapsObject = {
+                accessToken: galliToken,
+                map: {
+                    container: 'map',
+                    center: [userLocation.lat, userLocation.lng],
+                    zoom: 13,
+                    maxZoom: 25,
+                    minZoom: 5,
+                    clickable: false
+                }
+            };
+
+            map = new GalliMapPlugin(galliMapsObject);
+
+            // Add user location marker
+            const userMarker = {
+                color: "#3B82F6",
+                draggable: false,
+                latLng: [userLocation.lat, userLocation.lng]
+            };
+            map.displayPinMarker(userMarker);
+        }
+
+        // Load nearby tasks
+        async function loadNearbyTasks() {
+            try {
+                const token = localStorage.getItem('token');
+                const res = await fetch(`/tasks/nearby?lat=${userLocation.lat}&lng=${userLocation.lng}&radiusKm=10`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await res.json();
+                
+                displayTasks(data.tasks || []);
+            } catch (e) {
+                console.error('Load tasks error:', e);
+            }
+        }
+
+        // Display tasks on map and list
+        function displayTasks(tasks) {
+            // Clear existing markers
+            markers.forEach(m => {
+                try {
+                    map.removePinMarker(m);
+                } catch (e) {
+                    console.warn('Could not remove marker:', e);
+                }
+            });
+            markers = [];
+
+            const tasksList = document.getElementById('tasksList');
+            if (tasks.length === 0) {
+                tasksList.innerHTML = '<p class="text-gray-400">No tasks available nearby</p>';
+                return;
+            }
+
+            tasksList.innerHTML = '';
+
+            tasks.forEach(task => {
+                // Add marker using Galli Maps
+                const taskMarker = {
+                    color: "#FBBF24",
+                    draggable: false,
+                    latLng: [task.location.coordinates[1], task.location.coordinates[0]]
+                };
+                
+                const marker = map.displayPinMarker(taskMarker);
+                markers.push(marker);
+
+                // Add to list
+                const card = document.createElement('div');
+                card.className = 'task-card bg-gray-700 p-4 rounded-lg cursor-pointer';
+                card.innerHTML = `
+                    <h3 class="font-bold text-yellow-400">${task.title}</h3>
+                    <p class="text-sm text-gray-300 mt-1">${task.description || 'No description'}</p>
+                    <div class="flex justify-between items-center mt-3">
+                        <span class="text-green-400 font-bold">NPR ${(task.price / 100).toFixed(2)}</span>
+                        <button onclick="acceptTask('${task._id}')" class="bg-yellow-400 text-gray-900 px-3 py-1 rounded text-sm font-semibold hover:bg-yellow-300">
+                            Accept
+                        </button>
+                    </div>
+                `;
+                card.onclick = () => {
+                    // Center map on task location
+                    map.map.flyTo({
+                        center: [task.location.coordinates[0], task.location.coordinates[1]],
+                        zoom: 16
+                    });
+                };
+                tasksList.appendChild(card);
+            });
+        }
+
+        // Accept task
+        async function acceptTask(taskId) {
+            if (!confirm('Accept this task?')) return;
+
+            try {
+                const token = localStorage.getItem('token');
+                const res = await fetch(`/tasks/${taskId}/accept`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (res.ok) {
+                    alert('Task accepted! Check "My Tasks" section.');
+                    loadNearbyTasks();
+                    loadMyTasks();
+                } else {
+                    const err = await res.json();
+                    alert(err.error || 'Failed to accept task');
+                }
+            } catch (e) {
+                alert('Error: ' + e.message);
+            }
+        }
+
+        // Load my tasks
+        async function loadMyTasks() {
+            try {
+                const token = localStorage.getItem('token');
+                
+                // Posted by me
+                const postedRes = await fetch(`/users/${currentUser._id}/tasks/requested`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const postedData = await postedRes.json();
+                displayMyPostedTasks(postedData.tasks || []);
+
+                // Accepted by me
+                const acceptedRes = await fetch(`/users/${currentUser._id}/tasks/assigned`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const acceptedData = await acceptedRes.json();
+                displayMyAcceptedTasks(acceptedData.tasks || []);
+            } catch (e) {
+                console.error('Load my tasks error:', e);
+            }
+        }
+
+        function displayMyPostedTasks(tasks) {
+            const container = document.getElementById('myPostedTasks');
+            if (tasks.length === 0) {
+                container.innerHTML = '<p class="text-gray-400">No tasks posted yet</p>';
+                return;
+            }
+
+            container.innerHTML = tasks.map(task => `
+                <div class="bg-gray-700 p-3 rounded">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <h4 class="font-semibold">${task.title}</h4>
+                            <p class="text-sm text-gray-400">${task.status}</p>
+                        </div>
+                        <span class="text-green-400 font-bold">NPR ${(task.price / 100).toFixed(2)}</span>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function displayMyAcceptedTasks(tasks) {
+            const container = document.getElementById('myAcceptedTasks');
+            if (tasks.length === 0) {
+                container.innerHTML = '<p class="text-gray-400">No tasks accepted yet</p>';
+                return;
+            }
+
+            container.innerHTML = tasks.map(task => `
+                <div class="bg-gray-700 p-3 rounded">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <h4 class="font-semibold">${task.title}</h4>
+                            <p class="text-sm text-gray-400">${task.status}</p>
+                        </div>
+                        <span class="text-green-400 font-bold">NPR ${(task.price / 100).toFixed(2)}</span>
+                    </div>
+                    ${task.status === 'accepted' ? `
+                        <button onclick="startTask('${task._id}')" class="mt-2 bg-blue-500 text-white px-3 py-1 rounded text-sm w-full">
+                            Start Task
+                        </button>
+                    ` : ''}
+                    ${task.status === 'in_progress' ? `
+                        <button onclick="completeTask('${task._id}')" class="mt-2 bg-green-500 text-white px-3 py-1 rounded text-sm w-full">
+                            Complete Task
+                        </button>
+                    ` : ''}
+                </div>
+            `).join('');
+        }
+
+        // Start task
+        async function startTask(taskId) {
+            try {
+                const token = localStorage.getItem('token');
+                const res = await fetch(`/tasks/${taskId}/start`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (res.ok) {
+                    alert('Task started!');
+                    loadMyTasks();
+                } else {
+                    alert('Failed to start task');
+                }
+            } catch (e) {
+                alert('Error: ' + e.message);
+            }
+        }
+
+        // Complete task
+        async function completeTask(taskId) {
+            const proofUrl = prompt('Enter proof URL (or upload proof separately):');
+            if (!proofUrl) return;
+
+            try {
+                const token = localStorage.getItem('token');
+                const res = await fetch(`/tasks/${taskId}/complete`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ proofUrl })
+                });
+
+                if (res.ok) {
+                    alert('Task completed! Waiting for approval.');
+                    loadMyTasks();
+                } else {
+                    alert('Failed to complete task');
+                }
+            } catch (e) {
+                alert('Error: ' + e.message);
+            }
+        }
+
+        // Initialize Socket.IO
+        function initSocket() {
+            socket = io();
+            
+            socket.on('connect', () => {
+                console.log('Socket connected');
+                socket.emit('join_tasker');
+            });
+
+            socket.on('task_posted', (data) => {
+                console.log('New task posted:', data);
+                loadNearbyTasks();
+            });
+
+            socket.on('task_assigned', (data) => {
+                if (data.assignedTaskerId === currentUser._id) {
+                    loadMyTasks();
+                }
+            });
+        }
+
+        // Logout
+        document.getElementById('logoutBtn').addEventListener('click', () => {
+            localStorage.removeItem('token');
+            window.location.href = '/';
+        });
+
+        // Initialize on load
+        init();
+    </script>
+</body>
+</html>

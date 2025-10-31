@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html class="dark" lang="en">
+<head>
+    <meta charset="utf-8"/>
+    <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+    <title>KaamParyo - Post a Task</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Outlined" rel="stylesheet"/>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,typography"></script>
+    <script src="https://gallimap.com/static/dist/js/gallimaps.vector.min.latest.js"></script>
+    <script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        primary: "#FFC23A",
+                        "background-light": "#F8FAFC",
+                        "background-dark": "#2E3A4D",
+                        "surface-light": "#FFFFFF",
+                        "surface-dark": "#36455B",
+                        "text-primary-light": "#1E293B",
+                        "text-primary-dark": "#E2E8F0",
+                        "text-secondary-light": "#64748B",
+                        "text-secondary-dark": "#94A3B8",
+                        "border-light": "#E2E8F0",
+                        "border-dark": "#475569",
+                    },
+                    fontFamily: {
+                        display: ["Poppins", "sans-serif"],
+                    },
+                },
+            },
+        };
+    </script>
+    <style>
+        .material-icons-outlined { font-size: 32px; }
+        #map { height: 300px; width: 100%; border-radius: 12px; }
+    </style>
+</head>
+<body class="font-display bg-background-light dark:bg-background-dark">
+    <div class="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 overflow-y-auto">
+        <div class="bg-surface-light dark:bg-surface-dark rounded-xl shadow-2xl w-full max-w-2xl mx-auto p-6 md:p-8 my-8">
+            <div class="flex justify-between items-center mb-6">
+                <h1 class="text-2xl font-bold text-text-primary-light dark:text-text-primary-dark">Post a Task</h1>
+                <a href="/" class="text-text-secondary-light dark:text-text-secondary-dark hover:text-primary">
+                    <span class="material-icons-outlined">close</span>
+                </a>
+            </div>
+
+            <div class="flex justify-center mb-6">
+                <div class="flex items-center space-x-2 bg-gray-100 dark:bg-gray-700/50 p-1 rounded-full">
+                    <button id="step1Btn" class="bg-primary text-gray-900 font-semibold px-4 py-1.5 rounded-full text-sm">Step 1/3</button>
+                    <button id="step2Btn" class="text-text-secondary-light dark:text-text-secondary-dark font-medium px-4 py-1.5 rounded-full text-sm">When & Where?</button>
+                    <button id="step3Btn" class="text-text-secondary-light dark:text-text-secondary-dark font-medium px-4 py-1.5 rounded-full text-sm">Set Budget</button>
+                </div>
+            </div>
+
+            <form id="taskForm">
+                <!-- Step 1: Category -->
+                <div id="step1" class="step-content">
+                    <h2 class="text-3xl md:text-4xl font-bold text-center text-text-primary-light dark:text-text-primary-dark mb-6">
+                        What do you need help with?
+                    </h2>
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 md:gap-6 mb-8">
+                        <div class="category-item flex flex-col items-center space-y-2 cursor-pointer group" data-category="household">
+                            <div class="w-20 h-20 bg-blue-500 rounded-full flex items-center justify-center transform group-hover:scale-105 transition-transform duration-200">
+                                <span class="material-icons-outlined text-white">home</span>
+                            </div>
+                            <span class="text-text-primary-light dark:text-text-primary-dark font-medium text-sm">Household</span>
+                        </div>
+                        <div class="category-item flex flex-col items-center space-y-2 cursor-pointer group" data-category="delivery">
+                            <div class="w-20 h-20 bg-green-500 rounded-full flex items-center justify-center transform group-hover:scale-105 transition-transform duration-200">
+                                <span class="material-icons-outlined text-white">inventory_2</span>
+                            </div>
+                            <span class="text-text-primary-light dark:text-text-primary-dark font-medium text-sm">Deliveries</span>
+                        </div>
+                        <div class="category-item flex flex-col items-center space-y-2 cursor-pointer group" data-category="tech">
+                            <div class="w-20 h-20 bg-orange-500 rounded-full flex items-center justify-center transform group-hover:scale-105 transition-transform duration-200">
+                                <span class="material-icons-outlined text-white">build</span>
+                            </div>
+                            <span class="text-text-primary-light dark:text-text-primary-dark font-medium text-sm">Tech Help</span>
+                        </div>
+                        <div class="category-item flex flex-col items-center space-y-2 cursor-pointer group" data-category="personal">
+                            <div class="w-20 h-20 bg-teal-500 rounded-full flex items-center justify-center transform group-hover:scale-105 transition-transform duration-200">
+                                <span class="material-icons-outlined text-white">shopping_bag</span>
+                            </div>
+                            <span class="text-text-primary-light dark:text-text-primary-dark font-medium text-sm">Personal</span>
+                        </div>
+                        <div class="category-item flex flex-col items-center space-y-2 cursor-pointer group" data-category="ironing">
+                            <div class="w-20 h-20 bg-red-500 rounded-full flex items-center justify-center transform group-hover:scale-105 transition-transform duration-200">
+                                <span class="material-icons-outlined text-white">iron</span>
+                            </div>
+                            <span class="text-text-primary-light dark:text-text-primary-dark font-medium text-sm">Ironing</span>
+                        </div>
+                        <div class="category-item flex flex-col items-center space-y-2 cursor-pointer group" data-category="moving">
+                            <div class="w-20 h-20 bg-red-600 rounded-full flex items-center justify-center transform group-hover:scale-105 transition-transform duration-200">
+                                <span class="material-icons-outlined text-white">local_shipping</span>
+                            </div>
+                            <span class="text-text-primary-light dark:text-text-primary-dark font-medium text-sm">Moving Help</span>
+                        </div>
+                        <div class="category-item flex flex-col items-center space-y-2 cursor-pointer group" data-category="shopping">
+                            <div class="w-20 h-20 bg-lime-500 rounded-full flex items-center justify-center transform group-hover:scale-105 transition-transform duration-200">
+                                <span class="material-icons-outlined text-white">shopping_basket</span>
+                            </div>
+                            <span class="text-text-primary-light dark:text-text-primary-dark font-medium text-sm">Shopping</span>
+                        </div>
+                        <div class="category-item flex flex-col items-center space-y-2 cursor-pointer group" data-category="cleaning">
+                            <div class="w-20 h-20 bg-green-600 rounded-full flex items-center justify-center transform group-hover:scale-105 transition-transform duration-200">
+                                <span class="material-icons-outlined text-white">cleaning_services</span>
+                            </div>
+                            <span class="text-text-primary-light dark:text-text-primary-dark font-medium text-sm">Cleaning</span>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-md font-semibold text-text-primary-light dark:text-text-primary-dark mb-2">
+                            Detailed description (be specific!)
+                        </label>
+                        <textarea id="description" class="w-full bg-gray-100 dark:bg-gray-700/50 border border-border-light dark:border-border-dark rounded-lg p-3 text-text-primary-light dark:text-text-primary-dark placeholder:text-text-secondary-light dark:placeholder:text-text-secondary-dark focus:ring-2 focus:ring-primary focus:border-transparent transition" placeholder='e.g., "My kitchen sink is clogged and needs a plumber"' rows="4"></textarea>
+                    </div>
+                </div>
+
+                <!-- Step 2: Location -->
+                <div id="step2" class="step-content hidden">
+                    <h2 class="text-2xl font-bold text-center text-text-primary-light dark:text-text-primary-dark mb-6">
+                        When & Where?
+                    </h2>
+                    <div id="map" class="mb-4"></div>
+                    <input type="text" id="location" class="w-full bg-gray-100 dark:bg-gray-700/50 border border-border-light dark:border-border-dark rounded-lg p-3 mb-4" placeholder="Enter location" />
+                    <input type="number" id="radius" class="w-full bg-gray-100 dark:bg-gray-700/50 border border-border-light dark:border-border-dark rounded-lg p-3" placeholder="Search radius (km)" value="5" />
+                </div>
+
+                <!-- Step 3: Budget -->
+                <div id="step3" class="step-content hidden">
+                    <h2 class="text-2xl font-bold text-center text-text-primary-light dark:text-text-primary-dark mb-6">
+                        Set Your Budget
+                    </h2>
+                    <input type="number" id="price" class="w-full bg-gray-100 dark:bg-gray-700/50 border border-border-light dark:border-border-dark rounded-lg p-3 mb-4" placeholder="Price (NPR)" />
+                    <input type="number" id="duration" class="w-full bg-gray-100 dark:bg-gray-700/50 border border-border-light dark:border-border-dark rounded-lg p-3" placeholder="Estimated duration (minutes)" />
+                </div>
+
+                <div class="mt-8 flex gap-4">
+                    <button type="button" id="prevBtn" class="hidden w-full bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-text-primary-light dark:text-text-primary-dark font-bold text-lg py-3 rounded-lg transition">
+                        Previous
+                    </button>
+                    <button type="button" id="nextBtn" class="w-full bg-primary hover:opacity-90 text-gray-900 font-bold text-lg py-3 rounded-lg transition">
+                        Next
+                    </button>
+                    <button type="submit" id="submitBtn" class="hidden w-full bg-primary hover:opacity-90 text-gray-900 font-bold text-lg py-3 rounded-lg transition">
+                        Post Task
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        let currentStep = 1;
+        let selectedCategory = '';
+        let map, marker;
+        let selectedLocation = { lat: 27.7172, lng: 85.3240 }; // Kathmandu default
+        let galliToken = '';
+        let searchTimeout;
+
+        // Initialize Galli Maps Vector Plugin
+        function initMap() {
+            const galliMapsObject = {
+                accessToken: galliToken,
+                map: {
+                    container: 'map',
+                    center: [selectedLocation.lat, selectedLocation.lng],
+                    zoom: 15,
+                    maxZoom: 25,
+                    minZoom: 5,
+                    clickable: true
+                },
+                customClickFunctions: [handleMapClick]
+            };
+
+            map = new GalliMapPlugin(galliMapsObject);
+            
+            // Add initial marker
+            addMarker(selectedLocation.lat, selectedLocation.lng);
+        }
+
+        // Add marker to map
+        function addMarker(lat, lng) {
+            // Remove old marker if exists
+            if (marker) {
+                map.removePinMarker(marker);
+            }
+
+            // Add new marker
+            const pinMarkerObject = {
+                color: "#FFC23A",
+                draggable: true,
+                latLng: [lat, lng]
+            };
+
+            marker = map.displayPinMarker(pinMarkerObject);
+            selectedLocation = { lat, lng };
+            updateLocationName(lat, lng);
+        }
+
+        // Handle map click
+        async function handleMapClick(event) {
+            const lat = event.lngLat.lat;
+            const lng = event.lngLat.lng;
+            addMarker(lat, lng);
+        }
+
+        // Update location name using reverse geocoding
+        async function updateLocationName(lat, lng) {
+            try {
+                const token = localStorage.getItem('token');
+                const res = await fetch(`/maps/reverse?lat=${lat}&lng=${lng}`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await res.json();
+                
+                if (data.success && data.data) {
+                    const addr = data.data;
+                    const locationName = [
+                        addr.generalName,
+                        addr.place,
+                        addr.municipality,
+                        addr.district
+                    ].filter(Boolean).join(', ');
+                    
+                    document.getElementById('location').value = locationName || 'Selected Location';
+                }
+            } catch (e) {
+                console.error('Reverse geocode error:', e);
+            }
+        }
+
+        // Location search with Galli Maps autocomplete
+        document.getElementById('location').addEventListener('input', function(e) {
+            clearTimeout(searchTimeout);
+            const query = e.target.value.trim();
+            
+            if (query.length < 3) return;
+            
+            searchTimeout = setTimeout(async () => {
+                try {
+                    // Use Galli Maps autocomplete
+                    const results = await map.autoCompleteSearch(query);
+                    
+                    if (results && results.length > 0) {
+                        // Use first result
+                        const firstResult = results[0];
+                        
+                        // Search for detailed data
+                        await map.searchData(firstResult.name);
+                        
+                        // Update marker position (map.searchData automatically centers the map)
+                        // We'll get the center from the map
+                        setTimeout(() => {
+                            const center = map.map.getCenter();
+                            selectedLocation = { lat: center.lat, lng: center.lng };
+                            addMarker(center.lat, center.lng);
+                        }, 500);
+                    }
+                } catch (e) {
+                    console.error('Search error:', e);
+                    // Fallback to backend API
+                    try {
+                        const token = localStorage.getItem('token');
+                        const res = await fetch(`/maps/search?name=${encodeURIComponent(query)}&currentLat=${selectedLocation.lat}&currentLng=${selectedLocation.lng}`, {
+                            headers: { 'Authorization': `Bearer ${token}` }
+                        });
+                        const data = await res.json();
+                        
+                        if (data.success && data.data.features && data.data.features.length > 0) {
+                            const firstResult = data.data.features[0];
+                            const coords = firstResult.geometry.coordinates;
+                            addMarker(coords[1], coords[0]);
+                        }
+                    } catch (e2) {
+                        console.error('Fallback search error:', e2);
+                    }
+                }
+            }, 500);
+        });
+
+        // Category selection
+        document.querySelectorAll('.category-item').forEach(item => {
+            item.addEventListener('click', function() {
+                document.querySelectorAll('.category-item').forEach(i => i.classList.remove('ring-2', 'ring-primary'));
+                this.classList.add('ring-2', 'ring-primary');
+                selectedCategory = this.dataset.category;
+            });
+        });
+
+        // Step navigation
+        document.getElementById('nextBtn').addEventListener('click', () => {
+            if (currentStep === 1 && !selectedCategory) {
+                alert('Please select a category');
+                return;
+            }
+            if (currentStep < 3) {
+                currentStep++;
+                updateStep();
+            }
+        });
+
+        document.getElementById('prevBtn').addEventListener('click', () => {
+            if (currentStep > 1) {
+                currentStep--;
+                updateStep();
+            }
+        });
+
+        function updateStep() {
+            document.querySelectorAll('.step-content').forEach(s => s.classList.add('hidden'));
+            document.getElementById(`step${currentStep}`).classList.remove('hidden');
+            
+            document.getElementById('prevBtn').classList.toggle('hidden', currentStep === 1);
+            document.getElementById('nextBtn').classList.toggle('hidden', currentStep === 3);
+            document.getElementById('submitBtn').classList.toggle('hidden', currentStep !== 3);
+
+            if (currentStep === 2 && !map) {
+                if (!galliToken) {
+                    fetch('/api/config')
+                        .then(r => r.json())
+                        .then(cfg => { 
+                            galliToken = cfg.galliMapsApiKey || 'urle63a1458-7833-4b82-b946-19e4ef1f1138';
+                        })
+                        .finally(() => setTimeout(initMap, 100));
+                } else {
+                    setTimeout(initMap, 100);
+                }
+            }
+        }
+
+        // Form submission
+        document.getElementById('taskForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const price = parseInt(document.getElementById('price').value);
+            const duration = parseInt(document.getElementById('duration').value);
+            
+            if (!selectedCategory) {
+                alert('Please select a category');
+                return;
+            }
+            if (!price || price <= 0) {
+                alert('Please enter a valid price');
+                return;
+            }
+            
+            const taskData = {
+                title: selectedCategory.charAt(0).toUpperCase() + selectedCategory.slice(1) + ' Task',
+                description: document.getElementById('description').value,
+                categoryId: selectedCategory,
+                price: price * 100, // Convert to paisa
+                durationMin: duration || 60,
+                lat: selectedLocation.lat,
+                lng: selectedLocation.lng,
+                radiusKm: parseInt(document.getElementById('radius').value) || 5
+            };
+
+            try {
+                const token = localStorage.getItem('token');
+                if (!token) {
+                    alert('Please login first');
+                    window.location.href = '/';
+                    return;
+                }
+                
+                const res = await fetch('/tasks', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(taskData)
+                });
+
+                if (res.ok) {
+                    alert('Task posted successfully!');
+                    window.location.href = 'dashboard.html';
+                } else {
+                    const err = await res.json();
+                    alert('Failed to post task: ' + (err.error || 'Unknown error'));
+                }
+            } catch (e) {
+                alert('Error: ' + e.message);
+            }
+        });
+    </script>
+</body>
+</html>
