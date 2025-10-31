@@ -16,7 +16,7 @@ const UserSchema = new Schema({
   languages: [{ type: String }], // e.g., ['English', 'Nepali']
   skills: [{ type: String }], // e.g., ['Plumbing', 'Delivery', 'Cleaning']
   badges: [{ type: String }], // e.g., ['Top Performer', 'Fast Responder']
-  tier: { type: String, enum: ['standard', 'pro'], default: 'standard' }, // Service tier
+  tier: { type: String, enum: ['basic', 'standard', 'pro'], default: 'standard' }, // Service tier
   portfolio: [{
     title: { type: String, required: true },
     description: { type: String },

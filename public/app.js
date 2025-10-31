@@ -14,25 +14,133 @@ let activeChatTaskId = null;
 let taskerMap = null;
 let taskerMarker = null;
 
+// Initialize GalliMaps Service
+const galliMapsService = new GalliMapsService('e63a1458-7833-4b82-b946-19e4ef1f1138');
+let mapId = null;
+let markerId = null;
+let taskerMapId = null;
+let taskerMarkerId = null;
+let taskerCircleId = null;
+
+// Set up GalliMaps error and network event listeners
+window.addEventListener('gallimaps:error', (event) => {
+  const { message, level, context } = event.detail;
+
+  // Only show user-facing errors
+  if (level === 'error' && context && !context.includes('info')) {
+    // Don't show duplicate toasts for the same error
+    const errorKey = `${context}-${message}`;
+    if (!window._lastGalliMapsError || window._lastGalliMapsError !== errorKey) {
+      window._lastGalliMapsError = errorKey;
+      setTimeout(() => {
+        window._lastGalliMapsError = null;
+      }, 5000);
+    }
+  }
+});
+
+window.addEventListener('gallimaps:network', (event) => {
+  const { isOnline } = event.detail;
+
+  if (isOnline) {
+    showToast('Connection restored', 'success', 3000);
+  } else {
+    showToast('Connection lost. Retrying...', 'warning', 5000);
+  }
+});
+
 // Init
 document.addEventListener('DOMContentLoaded', () => {
+  // Check if GalliMaps library is loaded
+  checkGalliMapsLibrary();
+
   if (token) loadUser();
   attachModalHandlers();
   attachTabHandlers();
   loadCategories();
+  attachRadiusListener();
 });
+
+// Check GalliMaps library load status
+function checkGalliMapsLibrary() {
+  let checkAttempts = 0;
+  const maxAttempts = 10;
+
+  const checkInterval = setInterval(() => {
+    checkAttempts++;
+
+    if (typeof GalliMapPlugin !== 'undefined') {
+      clearInterval(checkInterval);
+      console.log('[GalliMaps] Library loaded successfully');
+      return;
+    }
+
+    if (checkAttempts >= maxAttempts) {
+      clearInterval(checkInterval);
+      console.error('[GalliMaps] Library failed to load after', maxAttempts, 'attempts');
+
+      // Show error message to user
+      showToast('Unable to load maps. Please refresh the page.', 'danger', 10000);
+
+      // Add a reload button to the page
+      const container = document.getElementById('app-container');
+      if (container) {
+        const alert = document.createElement('div');
+        alert.className = 'alert alert-danger alert-dismissible fade show m-3';
+        alert.innerHTML = `
+          <strong><i class="bi bi-exclamation-triangle"></i> Map Service Unavailable</strong>
+          <p class="mb-2">Unable to load the mapping service. This may be due to:</p>
+          <ul class="mb-2">
+            <li>Network connectivity issues</li>
+            <li>Browser extensions blocking scripts</li>
+            <li>Firewall or security settings</li>
+          </ul>
+          <button class="btn btn-sm btn-danger" onclick="location.reload()">
+            <i class="bi bi-arrow-clockwise"></i> Reload Page
+          </button>
+          <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+        container.prepend(alert);
+      }
+    }
+  }, 500);
+}
+
+function attachRadiusListener() {
+  const radiusInput = document.getElementById('tasker-radius');
+  if (radiusInput) {
+    radiusInput.addEventListener('input', (e) => {
+      const newRadius = Math.max(1, Math.min(50, Number(e.target.value) || 5));
+      taskerSearchRadiusKm = newRadius;
+
+      // Update circle if map is initialized
+      if (taskerMapId && taskerMarkerId) {
+        try {
+          const markers = galliMapsService.markers.get(taskerMapId);
+          const markerData = markers.get(taskerMarkerId);
+
+          if (markerData && markerData.latLng) {
+            updateTaskerCircle(markerData.latLng[0], markerData.latLng[1], newRadius);
+          }
+        } catch (error) {
+          console.error('Failed to update circle on radius change:', error);
+        }
+      }
+    });
+  }
+}
 
 function attachModalHandlers() {
   const postTaskModal = document.getElementById('postTaskModal');
   if (postTaskModal) {
     postTaskModal.addEventListener('shown.bs.modal', () => {
-      setTimeout(() => initMap(), 50);
+      setTimeout(() => initMap(), 200);
     });
   }
   const setLocModal = document.getElementById('setLocationModal');
   if (setLocModal) {
     setLocModal.addEventListener('shown.bs.modal', () => {
-      setTimeout(() => initTaskerMap(), 50);
+      setTimeout(() => initTaskerMapDirect(), 500);
     });
   }
 }
@@ -178,7 +286,7 @@ function logout() {
   if (socket) socket.disconnect();
 }
 
-function authHeaders(extra={}) { return { 'Authorization': `Bearer ${token}`, ...extra }; }
+function authHeaders(extra = {}) { return { 'Authorization': `Bearer ${token}`, ...extra }; }
 
 // Socket
 function connectSocket() {
@@ -204,7 +312,7 @@ function connectSocket() {
 }
 
 function playBeep() {
-  try { const ctx = new (window.AudioContext||window.webkitAudioContext)(); const o = ctx.createOscillator(); const g = ctx.createGain(); o.connect(g); g.connect(ctx.destination); o.type='sine'; o.frequency.value=880; g.gain.value=0.05; o.start(); setTimeout(()=>{ o.stop(); ctx.close(); }, 150); } catch {}
+  try { const ctx = new (window.AudioContext || window.webkitAudioContext)(); const o = ctx.createOscillator(); const g = ctx.createGain(); o.connect(g); g.connect(ctx.destination); o.type = 'sine'; o.frequency.value = 880; g.gain.value = 0.05; o.start(); setTimeout(() => { o.stop(); ctx.close(); }, 150); } catch { }
 }
 
 // Online toggle
@@ -222,145 +330,452 @@ function updateOnlineToggle() {
   btn.className = isOnline ? 'btn btn-outline-success me-2' : 'btn btn-outline-secondary me-2';
 }
 
-// Map using MapLibre GL with OpenFreeMap
+// Map using GalliMaps
 function initMap() {
-  if (!window.maplibregl) {
-    console.warn('MapLibre GL not loaded yet, retrying...');
-    setTimeout(initMap, 500);
+  if (!galliMapsService.isLoaded()) {
+    console.warn('GalliMaps not loaded yet, retrying...');
+
+    // Retry up to 5 times
+    if (!window._mapInitRetries) window._mapInitRetries = 0;
+    window._mapInitRetries++;
+
+    if (window._mapInitRetries < 5) {
+      setTimeout(initMap, 500);
+    } else {
+      showToast('Unable to load maps. Please refresh the page.', 'danger');
+      window._mapInitRetries = 0;
+    }
     return;
   }
-  
-  if (!map) {
-    const mapEl = document.getElementById('map');
-    
-    // GTA V style dark map
-    map = new maplibregl.Map({
-      container: mapEl,
-      style: {
-        version: 8,
-        sources: {
-          'dark-tiles': {
-            type: 'raster',
-            tiles: ['https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png'],
-            tileSize: 256,
-            attribution: '© CartoDB'
+
+  const mapEl = document.getElementById('map');
+  if (!mapEl) {
+    console.warn('map container not found');
+    return;
+  }
+
+  // Check if container is visible and has dimensions
+  if (mapEl.offsetWidth === 0 || mapEl.offsetHeight === 0) {
+    console.warn('map container not visible yet, retrying...');
+    setTimeout(initMap, 200);
+    return;
+  }
+
+  if (!mapId) {
+    try {
+      // Initialize GalliMaps
+      mapId = galliMapsService.initializeMap({
+        containerId: 'map',
+        center: [selectedLocation.lat, selectedLocation.lng],
+        zoom: 13,
+        clickable: true,
+        onLoad: () => {
+          console.log('GalliMaps loaded for task posting');
+          window._mapInitRetries = 0; // Reset retry counter on success
+
+          // Add zoom controls after map loads
+          try {
+            galliMapsService.addZoomControls(mapId, 'top-right');
+          } catch (error) {
+            console.error('Failed to add zoom controls:', error);
           }
         },
-        layers: [{
-          id: 'dark-tiles',
-          type: 'raster',
-          source: 'dark-tiles',
-          minzoom: 0,
-          maxzoom: 22
-        }]
-      },
-      center: [selectedLocation.lng, selectedLocation.lat],
-      zoom: 13
-    });
-    
-    // Add navigation controls
-    map.addControl(new maplibregl.NavigationControl(), 'top-right');
-    
-    // Add "Use Current Location" button
-    const locationBtn = document.createElement('div');
-    locationBtn.className = 'maplibregl-ctrl maplibregl-ctrl-group';
-    locationBtn.innerHTML = `
-      <button class="maplibre-style-btn" onclick="useCurrentLocation()" title="Use Current Location">
-        <i class="bi bi-crosshair"></i> Use My Location
-      </button>
-    `;
-    map.addControl({ onAdd: () => locationBtn, onRemove: () => {} }, 'top-left');
-    
-    // Add style switcher
-    const styleControl = document.createElement('div');
-    styleControl.className = 'maplibregl-ctrl maplibregl-ctrl-group';
-    styleControl.innerHTML = `
-      <button class="maplibre-style-btn" onclick="switchMapStyle('map', 'gta')" title="GTA V Dark">
-        <i class="bi bi-moon-stars-fill"></i>
-      </button>
-      <button class="maplibre-style-btn" onclick="switchMapStyle('map', 'street')" title="Street View">
-        <i class="bi bi-map"></i>
-      </button>
-      <button class="maplibre-style-btn" onclick="switchMapStyle('map', 'satellite')" title="Satellite View">
-        <i class="bi bi-globe"></i>
-      </button>
-    `;
-    map.addControl({ onAdd: () => styleControl, onRemove: () => {} }, 'bottom-left');
-    
-    // Create marker
-    marker = new maplibregl.Marker({ draggable: true, color: '#dc2626' })
-      .setLngLat([selectedLocation.lng, selectedLocation.lat])
-      .addTo(map);
-    
-    // Click to set location
-    map.on('click', (e) => {
-      selectedLocation = { lat: e.lngLat.lat, lng: e.lngLat.lng };
-      marker.setLngLat([e.lngLat.lng, e.lngLat.lat]);
-      updateLocationDisplay();
-    });
-    
-    // Drag marker
-    marker.on('dragend', () => {
-      const lngLat = marker.getLngLat();
-      selectedLocation = { lat: lngLat.lat, lng: lngLat.lng };
-      updateLocationDisplay();
-    });
+        onError: (error) => {
+          console.error('GalliMaps initialization error:', error);
+          const userMessage = galliMapsService.handleError(error, 'initialization');
+          showToast(userMessage, 'danger');
+
+          // Reset map ID to allow retry
+          mapId = null;
+        }
+      });
+
+      // Add draggable marker
+      markerId = galliMapsService.addMarker(mapId, {
+        latLng: [selectedLocation.lat, selectedLocation.lng],
+        color: '#dc2626',
+        draggable: true,
+        onDragEnd: (newLatLng) => {
+          selectedLocation = { lat: newLatLng[0], lng: newLatLng[1] };
+          updateLocationDisplay();
+        }
+      });
+
+      // Add click listener to update marker position
+      galliMapsService.addClickListener(mapId, (latLng) => {
+        selectedLocation = { lat: latLng.lat, lng: latLng.lng };
+        galliMapsService.updateMarkerPosition(mapId, markerId, [latLng.lat, latLng.lng]);
+        updateLocationDisplay();
+      });
+
+      // Initialize autocomplete search
+      initMapAutocomplete();
+
+    } catch (error) {
+      console.error('Failed to initialize map:', error);
+      const userMessage = galliMapsService.handleError(error, 'map initialization');
+      showToast(userMessage, 'danger');
+
+      // Reset map ID to allow retry
+      mapId = null;
+    }
   }
   setTimeout(() => { updateLocationDisplay(); }, 100);
 }
 
 function updateLocationDisplay() {
-  const latEl = document.getElementById('selected-lat'); const lngEl = document.getElementById('selected-lng');
-  if (latEl && lngEl) { latEl.textContent = selectedLocation.lat.toFixed(4); lngEl.textContent = selectedLocation.lng.toFixed(4); }
+  const latEl = document.getElementById('selected-lat');
+  const lngEl = document.getElementById('selected-lng');
+  if (latEl && lngEl) {
+    latEl.textContent = selectedLocation.lat.toFixed(4);
+    lngEl.textContent = selectedLocation.lng.toFixed(4);
+  }
 }
 
-window.useCurrentLocation = function() {
+// Autocomplete search functionality
+let searchDebounceTimer = null;
+let currentSearchResults = [];
+
+function initMapAutocomplete() {
+  const searchInput = document.getElementById('map-location-search');
+  if (!searchInput) return;
+
+  const dropdown = document.getElementById('map-search-dropdown');
+  if (!dropdown) return;
+
+  // Add input event listener with debounce
+  searchInput.addEventListener('input', (e) => {
+    const query = e.target.value.trim();
+
+    // Clear previous timer
+    if (searchDebounceTimer) {
+      clearTimeout(searchDebounceTimer);
+    }
+
+    // Hide dropdown if query is too short
+    if (query.length < 4) {
+      dropdown.classList.add('hidden');
+      currentSearchResults = [];
+      return;
+    }
+
+    // Show loading state
+    dropdown.innerHTML = '<div class="p-2 text-muted small"><i class="bi bi-hourglass-split"></i> Searching...</div>';
+    dropdown.classList.remove('hidden');
+
+    // Debounce search - wait 300ms after user stops typing
+    searchDebounceTimer = setTimeout(() => {
+      performAutocompleteSearch(query);
+    }, 300);
+  });
+
+  // Hide dropdown when clicking outside
+  document.addEventListener('click', (e) => {
+    if (!searchInput.contains(e.target) && !dropdown.contains(e.target)) {
+      dropdown.classList.add('hidden');
+    }
+  });
+
+  // Show dropdown when focusing on input with existing results
+  searchInput.addEventListener('focus', () => {
+    if (currentSearchResults.length > 0) {
+      dropdown.classList.remove('hidden');
+    }
+  });
+}
+
+async function performAutocompleteSearch(query) {
+  const dropdown = document.getElementById('map-search-dropdown');
+  if (!dropdown) return;
+
+  try {
+    // Call GalliMaps autocomplete API
+    const results = await galliMapsService.autoCompleteSearch(query);
+
+    currentSearchResults = results;
+
+    if (!results || results.length === 0) {
+      dropdown.innerHTML = '<div class="p-2 text-muted small"><i class="bi bi-info-circle"></i> No locations found</div>';
+      return;
+    }
+
+    // Display results in dropdown
+    dropdown.innerHTML = results.map((result, index) => `
+      <div class="search-result-item p-2 border-bottom" data-index="${index}" style="cursor: pointer;">
+        <div class="fw-semibold small"><i class="bi bi-geo-alt-fill text-danger"></i> ${escapeHtml(result.name)}</div>
+        <div class="text-muted" style="font-size: 0.75rem;">${escapeHtml(result.address || '')}</div>
+      </div>
+    `).join('');
+
+    // Add click handlers to results
+    dropdown.querySelectorAll('.search-result-item').forEach(item => {
+      item.addEventListener('click', () => {
+        const index = parseInt(item.dataset.index);
+        selectSearchResult(results[index]);
+      });
+
+      // Add hover effect
+      item.addEventListener('mouseenter', () => {
+        item.style.backgroundColor = '#f8f9fa';
+      });
+      item.addEventListener('mouseleave', () => {
+        item.style.backgroundColor = '';
+      });
+    });
+
+  } catch (error) {
+    console.error('Autocomplete search failed:', error);
+    dropdown.innerHTML = `<div class="p-2 text-danger small"><i class="bi bi-exclamation-triangle"></i> Search failed. Please try again.</div>`;
+    showToast('Location search failed', 'danger');
+  }
+}
+
+async function selectSearchResult(result) {
+  const searchInput = document.getElementById('map-location-search');
+  const dropdown = document.getElementById('map-search-dropdown');
+
+  if (!result || !result.coordinates) {
+    showToast('Invalid location data', 'danger');
+    return;
+  }
+
+  try {
+    // Update search input with selected location name
+    if (searchInput) {
+      searchInput.value = result.name;
+    }
+
+    // Hide dropdown
+    if (dropdown) {
+      dropdown.classList.add('hidden');
+    }
+
+    // Get detailed location data using searchLocation API
+    const locationData = await galliMapsService.searchLocation(result);
+
+    const lat = locationData.coordinates.lat;
+    const lng = locationData.coordinates.lng;
+
+    // Validate coordinates
+    if (isNaN(lat) || isNaN(lng)) {
+      throw new Error('Invalid coordinates received');
+    }
+
+    // Update selected location
+    selectedLocation = { lat, lng };
+
+    // Update marker position
+    if (mapId && markerId) {
+      galliMapsService.updateMarkerPosition(mapId, markerId, [lat, lng]);
+
+      // Center map on selected location with animation
+      galliMapsService.setCenter(mapId, [lat, lng], 15, true);
+    }
+
+    // Update location display
+    updateLocationDisplay();
+
+    showToast(`Location set to ${result.name}`, 'success', 3000);
+
+  } catch (error) {
+    console.error('Failed to select location:', error);
+    showToast('Failed to set location. Please try again.', 'danger');
+  }
+}
+
+// Clear search input
+function clearMapSearch() {
+  const searchInput = document.getElementById('map-location-search');
+  const dropdown = document.getElementById('map-search-dropdown');
+
+  if (searchInput) {
+    searchInput.value = '';
+  }
+
+  if (dropdown) {
+    dropdown.classList.add('hidden');
+  }
+
+  currentSearchResults = [];
+}
+
+// Tasker map autocomplete functionality
+let taskerSearchDebounceTimer = null;
+let currentTaskerSearchResults = [];
+
+function initTaskerMapAutocomplete() {
+  const searchInput = document.getElementById('tasker-location-search');
+  if (!searchInput) return;
+
+  const dropdown = document.getElementById('tasker-search-dropdown');
+  if (!dropdown) return;
+
+  // Add input event listener with debounce
+  searchInput.addEventListener('input', (e) => {
+    const query = e.target.value.trim();
+
+    // Clear previous timer
+    if (taskerSearchDebounceTimer) {
+      clearTimeout(taskerSearchDebounceTimer);
+    }
+
+    // Hide dropdown if query is too short
+    if (query.length < 4) {
+      dropdown.classList.add('hidden');
+      currentTaskerSearchResults = [];
+      return;
+    }
+
+    // Show loading state
+    dropdown.innerHTML = '<div class="p-2 text-muted small"><i class="bi bi-hourglass-split"></i> Searching...</div>';
+    dropdown.classList.remove('hidden');
+
+    // Debounce search - wait 300ms after user stops typing
+    taskerSearchDebounceTimer = setTimeout(() => {
+      performTaskerAutocompleteSearch(query);
+    }, 300);
+  });
+
+  // Hide dropdown when clicking outside
+  document.addEventListener('click', (e) => {
+    if (!searchInput.contains(e.target) && !dropdown.contains(e.target)) {
+      dropdown.classList.add('hidden');
+    }
+  });
+
+  // Show dropdown when focusing on input with existing results
+  searchInput.addEventListener('focus', () => {
+    if (currentTaskerSearchResults.length > 0) {
+      dropdown.classList.remove('hidden');
+    }
+  });
+}
+
+async function performTaskerAutocompleteSearch(query) {
+  const dropdown = document.getElementById('tasker-search-dropdown');
+  if (!dropdown) return;
+
+  try {
+    // Call GalliMaps autocomplete API
+    const results = await galliMapsService.autoCompleteSearch(query);
+
+    currentTaskerSearchResults = results;
+
+    if (!results || results.length === 0) {
+      dropdown.innerHTML = '<div class="p-2 text-muted small"><i class="bi bi-info-circle"></i> No locations found</div>';
+      return;
+    }
+
+    // Display results in dropdown
+    dropdown.innerHTML = results.map((result, index) => `
+      <div class="search-result-item p-2 border-bottom" data-index="${index}" style="cursor: pointer;">
+        <div class="fw-semibold small"><i class="bi bi-geo-alt-fill text-danger"></i> ${escapeHtml(result.name)}</div>
+        <div class="text-muted" style="font-size: 0.75rem;">${escapeHtml(result.address || '')}</div>
+      </div>
+    `).join('');
+
+    // Add click handlers to results
+    dropdown.querySelectorAll('.search-result-item').forEach(item => {
+      item.addEventListener('click', () => {
+        const index = parseInt(item.dataset.index);
+        selectTaskerSearchResult(results[index]);
+      });
+
+      // Add hover effect
+      item.addEventListener('mouseenter', () => {
+        item.style.backgroundColor = '#f8f9fa';
+      });
+      item.addEventListener('mouseleave', () => {
+        item.style.backgroundColor = '';
+      });
+    });
+
+  } catch (error) {
+    console.error('Tasker autocomplete search failed:', error);
+    dropdown.innerHTML = `<div class="p-2 text-danger small"><i class="bi bi-exclamation-triangle"></i> Search failed. Please try again.</div>`;
+    showToast('Location search failed', 'danger');
+  }
+}
+
+async function selectTaskerSearchResult(result) {
+  const searchInput = document.getElementById('tasker-location-search');
+  const dropdown = document.getElementById('tasker-search-dropdown');
+
+  if (!result || !result.coordinates) {
+    showToast('Invalid location data', 'danger');
+    return;
+  }
+
+  try {
+    // Update search input with selected location name
+    if (searchInput) {
+      searchInput.value = result.name;
+    }
+
+    // Hide dropdown
+    if (dropdown) {
+      dropdown.classList.add('hidden');
+    }
+
+    // Get detailed location data using searchLocation API
+    const locationData = await galliMapsService.searchLocation(result);
+
+    const lat = locationData.coordinates.lat;
+    const lng = locationData.coordinates.lng;
+
+    // Validate coordinates
+    if (isNaN(lat) || isNaN(lng)) {
+      throw new Error('Invalid coordinates received');
+    }
+
+    // Update marker position
+    if (taskerMapId && taskerMarkerId) {
+      galliMapsService.updateMarkerPosition(taskerMapId, taskerMarkerId, [lat, lng]);
+
+      // Center map on selected location with animation
+      galliMapsService.setCenter(taskerMapId, [lat, lng], 15, true);
+
+      // Update display
+      updateTaskerMapDisplay(lat, lng);
+
+      // Update circle
+      updateTaskerCircle(lat, lng, taskerSearchRadiusKm);
+    }
+
+    showToast(`Location set to ${result.name}`, 'success', 3000);
+
+  } catch (error) {
+    console.error('Failed to select tasker location:', error);
+    showToast('Failed to set location. Please try again.', 'danger');
+  }
+}
+
+window.useCurrentLocation = function () {
   if (!navigator.geolocation) {
     showToast('Geolocation not supported by your browser', 'danger');
     return;
   }
-  
+
   showToast('Getting your location...', 'info', 2000);
-  
+
   navigator.geolocation.getCurrentPosition((pos) => {
     const { latitude, longitude } = pos.coords;
     selectedLocation = { lat: latitude, lng: longitude };
-    
-    if (map && marker) {
-      // Smooth pan to current location
-      map.flyTo({
-        center: [longitude, latitude],
-        zoom: 15,
-        duration: 2000,
-        essential: true
-      });
-      
-      marker.setLngLat([longitude, latitude]);
-      updateLocationDisplay();
-      
-      // Add pulse effect
-      const pulseEl = document.createElement('div');
-      pulseEl.className = 'location-pulse';
-      pulseEl.style.cssText = `
-        width: 20px;
-        height: 20px;
-        background: #3b82f6;
-        border-radius: 50%;
-        position: absolute;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        animation: pulse 2s ease-out;
-        pointer-events: none;
-      `;
-      
-      const pulseMarker = new maplibregl.Marker({ element: pulseEl })
-        .setLngLat([longitude, latitude])
-        .addTo(map);
-      
-      setTimeout(() => pulseMarker.remove(), 2000);
-      
-      showToast('Location set to your current position', 'success');
+
+    if (mapId && markerId) {
+      try {
+        // Smooth pan to current location
+        galliMapsService.setCenter(mapId, [latitude, longitude], 15, true);
+
+        // Update marker position
+        galliMapsService.updateMarkerPosition(mapId, markerId, [latitude, longitude]);
+        updateLocationDisplay();
+
+        showToast('Location set to your current position', 'success');
+      } catch (error) {
+        console.error('Failed to update location:', error);
+        showToast('Failed to update map location', 'danger');
+      }
     }
   }, (err) => {
     showToast('Unable to get your location: ' + err.message, 'danger');
@@ -371,52 +786,31 @@ window.useCurrentLocation = function() {
   });
 };
 
-window.useTaskerCurrentLocation = function() {
+window.useTaskerCurrentLocation = function () {
   if (!navigator.geolocation) {
     showToast('Geolocation not supported by your browser', 'danger');
     return;
   }
-  
+
   showToast('Getting your location...', 'info', 2000);
-  
+
   navigator.geolocation.getCurrentPosition((pos) => {
     const { latitude, longitude } = pos.coords;
-    
-    if (taskerMap && taskerMarker) {
-      // Smooth pan to current location
-      taskerMap.flyTo({
-        center: [longitude, latitude],
-        zoom: 15,
-        duration: 2000,
-        essential: true
-      });
-      
-      taskerMarker.setLngLat([longitude, latitude]);
-      updateTaskerMapDisplay(latitude, longitude);
-      
-      // Add pulse effect
-      const pulseEl = document.createElement('div');
-      pulseEl.className = 'location-pulse';
-      pulseEl.style.cssText = `
-        width: 20px;
-        height: 20px;
-        background: #3b82f6;
-        border-radius: 50%;
-        position: absolute;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        animation: pulse 2s ease-out;
-        pointer-events: none;
-      `;
-      
-      const pulseMarker = new maplibregl.Marker({ element: pulseEl })
-        .setLngLat([longitude, latitude])
-        .addTo(taskerMap);
-      
-      setTimeout(() => pulseMarker.remove(), 2000);
-      
-      showToast('Location set to your current position', 'success');
+
+    if (taskerMapId && taskerMarkerId) {
+      try {
+        // Smooth pan to current location
+        galliMapsService.setCenter(taskerMapId, [latitude, longitude], 15, true);
+
+        // Update marker position
+        galliMapsService.updateMarkerPosition(taskerMapId, taskerMarkerId, [latitude, longitude]);
+        updateTaskerMapDisplay(latitude, longitude);
+
+        showToast('Location set to your current position', 'success');
+      } catch (error) {
+        console.error('Failed to update tasker location:', error);
+        showToast('Failed to update map location', 'danger');
+      }
     }
   }, (err) => {
     showToast('Unable to get your location: ' + err.message, 'danger');
@@ -446,92 +840,208 @@ function openSetLocationModal() {
   modal.show();
 }
 
-function initTaskerMap() {
-  if (!window.maplibregl) {
-    console.warn('MapLibre GL not loaded yet, retrying...');
-    setTimeout(initTaskerMap, 500);
+// Direct initialization without service wrapper (for modal)
+function initTaskerMapDirect() {
+  if (typeof GalliMapPlugin === 'undefined') {
+    console.warn('GalliMapPlugin not loaded');
+    setTimeout(initTaskerMapDirect, 500);
     return;
   }
-  
-  const def = taskerLocation || selectedLocation || { lat: 27.7172, lng: 85.3240 };
-  const mapEl = document.getElementById('tasker-map'); if (!mapEl) return;
-  if (!taskerMap) {
-    // GTA V style dark map
-    taskerMap = new maplibregl.Map({
-      container: mapEl,
-      style: {
-        version: 8,
-        sources: {
-          'dark-tiles': {
-            type: 'raster',
-            tiles: ['https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png'],
-            tileSize: 256,
-            attribution: '© CartoDB'
-          }
-        },
-        layers: [{
-          id: 'dark-tiles',
-          type: 'raster',
-          source: 'dark-tiles',
-          minzoom: 0,
-          maxzoom: 22
-        }]
+
+  const mapEl = document.getElementById('tasker-map');
+  if (!mapEl || mapEl.offsetWidth === 0) {
+    console.warn('tasker-map not ready');
+    setTimeout(initTaskerMapDirect, 200);
+    return;
+  }
+
+  if (taskerMap) {
+    console.log('Tasker map already initialized');
+    return;
+  }
+
+  try {
+    const def = taskerLocation || selectedLocation || { lat: 27.7172, lng: 85.3240 };
+
+    const galliMapsObject = {
+      accessToken: 'e63a1458-7833-4b82-b946-19e4ef1f1138',
+      map: {
+        container: 'tasker-map',
+        center: [def.lat, def.lng],
+        zoom: 13,
+        maxZoom: 25,
+        minZoom: 5,
+        clickable: true
       },
-      center: [def.lng, def.lat],
-      zoom: 13
+      customClickFunctions: [(event) => {
+        const lat = event.lngLat.lat;
+        const lng = event.lngLat.lng;
+
+        // Remove old marker
+        if (taskerMarker) {
+          try { taskerMap.removePinMarker(taskerMarker); } catch (e) { }
+        }
+
+        // Add new marker
+        taskerMarker = taskerMap.displayPinMarker({
+          color: "#dc2626",
+          draggable: true,
+          latLng: [lat, lng]
+        });
+
+        updateTaskerMapDisplay(lat, lng);
+      }]
+    };
+
+    taskerMap = new GalliMapPlugin(galliMapsObject);
+
+    // Add initial marker
+    taskerMarker = taskerMap.displayPinMarker({
+      color: "#dc2626",
+      draggable: true,
+      latLng: [def.lat, def.lng]
     });
-    
-    // Add navigation controls
-    taskerMap.addControl(new maplibregl.NavigationControl(), 'top-right');
-    
-    // Add "Use Current Location" button
-    const locationBtn = document.createElement('div');
-    locationBtn.className = 'maplibregl-ctrl maplibregl-ctrl-group';
-    locationBtn.innerHTML = `
-      <button class="maplibre-style-btn" onclick="useTaskerCurrentLocation()" title="Use Current Location">
-        <i class="bi bi-crosshair"></i> Use My Location
-      </button>
-    `;
-    taskerMap.addControl({ onAdd: () => locationBtn, onRemove: () => {} }, 'top-left');
-    
-    // Add style switcher
-    const styleControl = document.createElement('div');
-    styleControl.className = 'maplibregl-ctrl maplibregl-ctrl-group';
-    styleControl.innerHTML = `
-      <button class="maplibre-style-btn" onclick="switchMapStyle('tasker', 'gta')" title="GTA V Dark">
-        <i class="bi bi-moon-stars-fill"></i>
-      </button>
-      <button class="maplibre-style-btn" onclick="switchMapStyle('tasker', 'street')" title="Street View">
-        <i class="bi bi-map"></i>
-      </button>
-      <button class="maplibre-style-btn" onclick="switchMapStyle('tasker', 'satellite')" title="Satellite View">
-        <i class="bi bi-globe"></i>
-      </button>
-    `;
-    taskerMap.addControl({ onAdd: () => styleControl, onRemove: () => {} }, 'bottom-left');
-    
-    // Create marker
-    taskerMarker = new maplibregl.Marker({ draggable: true, color: '#dc2626' })
-      .setLngLat([def.lng, def.lat])
-      .addTo(taskerMap);
-    
-    // Click to set location
-    taskerMap.on('click', (e) => {
-      taskerMarker.setLngLat([e.lngLat.lng, e.lngLat.lat]);
-      updateTaskerMapDisplay(e.lngLat.lat, e.lngLat.lng);
-    });
-    
-    // Drag marker
-    taskerMarker.on('dragend', () => {
-      const lngLat = taskerMarker.getLngLat();
-      updateTaskerMapDisplay(lngLat.lat, lngLat.lng);
-    });
+
+    updateTaskerMapDisplay(def.lat, def.lng);
+    document.getElementById('tasker-radius').value = taskerSearchRadiusKm;
+
+    console.log('Tasker map initialized successfully (direct)');
+  } catch (error) {
+    console.error('Failed to initialize tasker map:', error);
+    showToast('Map initialization failed', 'warning');
+  }
+}
+
+function initTaskerMap() {
+  if (!galliMapsService.isLoaded()) {
+    console.warn('GalliMaps not loaded yet, retrying...');
+
+    // Retry up to 5 times
+    if (!window._taskerMapInitRetries) window._taskerMapInitRetries = 0;
+    window._taskerMapInitRetries++;
+
+    if (window._taskerMapInitRetries < 5) {
+      setTimeout(initTaskerMap, 500);
+    } else {
+      showToast('Unable to load maps. Please refresh the page.', 'danger');
+      window._taskerMapInitRetries = 0;
+    }
+    return;
+  }
+
+  const def = taskerLocation || selectedLocation || { lat: 27.7172, lng: 85.3240 };
+  const mapEl = document.getElementById('tasker-map');
+  if (!mapEl) {
+    console.warn('tasker-map container not found');
+    return;
+  }
+
+  // Check if container is visible and has dimensions
+  if (mapEl.offsetWidth === 0 || mapEl.offsetHeight === 0) {
+    console.warn('tasker-map container not visible yet, retrying...');
+    setTimeout(initTaskerMap, 200);
+    return;
+  }
+
+  if (!taskerMapId) {
+    try {
+      // Initialize GalliMaps for tasker
+      taskerMapId = galliMapsService.initializeMap({
+        containerId: 'tasker-map',
+        center: [def.lat, def.lng],
+        zoom: 13,
+        clickable: true,
+        onLoad: () => {
+          console.log('GalliMaps loaded for tasker location');
+          window._taskerMapInitRetries = 0; // Reset retry counter on success
+
+          // Add zoom controls after map loads
+          try {
+            galliMapsService.addZoomControls(taskerMapId, 'top-right');
+          } catch (error) {
+            console.error('Failed to add zoom controls:', error);
+          }
+          // Add circle overlay after map loads
+          updateTaskerCircle(def.lat, def.lng, taskerSearchRadiusKm);
+        },
+        onError: (error) => {
+          console.error('GalliMaps initialization error:', error);
+          const userMessage = galliMapsService.handleError(error, 'initialization');
+          showToast(userMessage, 'danger');
+
+          // Reset map ID to allow retry
+          taskerMapId = null;
+        }
+      });
+
+      // Add draggable marker
+      taskerMarkerId = galliMapsService.addMarker(taskerMapId, {
+        latLng: [def.lat, def.lng],
+        color: '#dc2626',
+        draggable: true,
+        onDragEnd: (newLatLng) => {
+          updateTaskerMapDisplay(newLatLng[0], newLatLng[1]);
+          updateTaskerCircle(newLatLng[0], newLatLng[1], taskerSearchRadiusKm);
+        }
+      });
+
+      // Add click listener to update marker position
+      galliMapsService.addClickListener(taskerMapId, (latLng) => {
+        galliMapsService.updateMarkerPosition(taskerMapId, taskerMarkerId, [latLng.lat, latLng.lng]);
+        updateTaskerMapDisplay(latLng.lat, latLng.lng);
+        updateTaskerCircle(latLng.lat, latLng.lng, taskerSearchRadiusKm);
+      });
+
+      // Initialize autocomplete search for tasker map
+      initTaskerMapAutocomplete();
+
+    } catch (error) {
+      console.error('Failed to initialize tasker map:', error);
+      const userMessage = galliMapsService.handleError(error, 'tasker map initialization');
+      showToast(userMessage, 'danger');
+
+      // Reset map ID to allow retry
+      taskerMapId = null;
+    }
   } else {
-    taskerMap.setCenter([def.lng, def.lat]);
-    taskerMarker.setLngLat([def.lng, def.lat]);
+    // Update existing map
+    try {
+      galliMapsService.setCenter(taskerMapId, [def.lat, def.lng], 13, false);
+      galliMapsService.updateMarkerPosition(taskerMapId, taskerMarkerId, [def.lat, def.lng]);
+      updateTaskerCircle(def.lat, def.lng, taskerSearchRadiusKm);
+    } catch (error) {
+      console.error('Failed to update tasker map:', error);
+      const userMessage = galliMapsService.handleError(error, 'tasker map update');
+      showToast(userMessage, 'warning');
+    }
   }
   document.getElementById('tasker-radius').value = taskerSearchRadiusKm;
   updateTaskerMapDisplay(def.lat, def.lng);
+}
+
+function updateTaskerCircle(lat, lng, radiusKm) {
+  if (!taskerMapId) return;
+
+  try {
+    // Remove existing circle if present
+    if (taskerCircleId) {
+      galliMapsService.removeCircle(taskerMapId, taskerCircleId);
+      taskerCircleId = null;
+    }
+
+    // Add new circle with updated radius
+    taskerCircleId = galliMapsService.addCircle(taskerMapId, {
+      center: [lat, lng],
+      radiusKm: radiusKm,
+      color: '#3b82f6',
+      opacity: 0.15,
+      strokeColor: '#2563eb',
+      strokeWidth: 2
+    });
+  } catch (error) {
+    console.error('Failed to update tasker circle:', error);
+    // Circle functionality is optional, don't show error to user
+  }
 }
 
 function updateTaskerMapDisplay(lat, lng) {
@@ -540,16 +1050,35 @@ function updateTaskerMapDisplay(lat, lng) {
 }
 
 async function saveTaskerLocation() {
-  if (!taskerMarker) return;
-  const lngLat = taskerMarker.getLngLat();
-  taskerLocation = { lat: lngLat.lat, lng: lngLat.lng };
-  taskerSearchRadiusKm = Math.max(1, Number(document.getElementById('tasker-radius').value) || 5);
-  updateTaskerLocationInline();
-  // Optionally persist to profile
-  try { await fetch(`${API_URL}/auth/me`, { method: 'PUT', headers: authHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify({ lat: taskerLocation.lat, lng: taskerLocation.lng }) }); } catch {}
-  bootstrap.Modal.getInstance(document.getElementById('setLocationModal')).hide();
-  showToast('Search location updated', 'success');
-  loadNearbyTasks();
+  if (!taskerMarkerId || !taskerMapId) return;
+
+  try {
+    // Get marker data from service
+    const markers = galliMapsService.markers.get(taskerMapId);
+    const markerData = markers.get(taskerMarkerId);
+
+    if (markerData && markerData.latLng) {
+      taskerLocation = { lat: markerData.latLng[0], lng: markerData.latLng[1] };
+      taskerSearchRadiusKm = Math.max(1, Number(document.getElementById('tasker-radius').value) || 5);
+      updateTaskerLocationInline();
+
+      // Optionally persist to profile
+      try {
+        await fetch(`${API_URL}/auth/me`, {
+          method: 'PUT',
+          headers: authHeaders({ 'Content-Type': 'application/json' }),
+          body: JSON.stringify({ lat: taskerLocation.lat, lng: taskerLocation.lng })
+        });
+      } catch { }
+
+      bootstrap.Modal.getInstance(document.getElementById('setLocationModal')).hide();
+      showToast('Search location updated', 'success');
+      loadNearbyTasks();
+    }
+  } catch (error) {
+    console.error('Failed to save tasker location:', error);
+    showToast('Failed to save location', 'danger');
+  }
 }
 
 // Categories
@@ -562,10 +1091,10 @@ async function loadCategories() {
     const customOpt = document.createElement('option'); customOpt.value = 'custom'; customOpt.textContent = 'Custom (describe below)'; select.appendChild(customOpt);
     (data.categories || []).forEach(cat => {
       if (cat._id === 'custom') return;
-      const opt = document.createElement('option'); opt.value = cat._id; opt.textContent = `${cat.name} (NPR ${(cat.minPrice/100).toLocaleString()}-${(cat.maxPrice/100).toLocaleString()})`; select.appendChild(opt);
+      const opt = document.createElement('option'); opt.value = cat._id; opt.textContent = `${cat.name} (NPR ${(cat.minPrice / 100).toLocaleString()}-${(cat.maxPrice / 100).toLocaleString()})`; select.appendChild(opt);
     });
     renderCategoriesList(data.categories || []);
-  } catch {}
+  } catch { }
 }
 
 function onCategoryChange() {
@@ -578,13 +1107,13 @@ window.onCategoryChange = onCategoryChange;
 function renderCategoriesList(categories) {
   const container = document.getElementById('categories-list'); if (!container) return;
   if (!categories.length) { container.innerHTML = '<p class="text-muted mb-0">No categories yet</p>'; return; }
-  container.innerHTML = categories.map(c => `<div class="d-flex justify-content-between align-items-center border rounded p-2 mb-2"><div><strong>${escapeHtml(c.name)}</strong><div class="small text-muted">NPR ${(c.minPrice/100).toLocaleString()} - ${(c.maxPrice/100).toLocaleString()}</div></div><code class="small">${c._id}</code></div>`).join('');
+  container.innerHTML = categories.map(c => `<div class="d-flex justify-content-between align-items-center border rounded p-2 mb-2"><div><strong>${escapeHtml(c.name)}</strong><div class="small text-muted">NPR ${(c.minPrice / 100).toLocaleString()} - ${(c.maxPrice / 100).toLocaleString()}</div></div><code class="small">${c._id}</code></div>`).join('');
 }
 
 // Post Task
 const createTaskForm = document.getElementById('create-task-form');
 if (createTaskForm) {
-createTaskForm.addEventListener('submit', async (e) => {
+  createTaskForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const sel = document.getElementById('task-category').value;
     const taskData = {
@@ -613,69 +1142,69 @@ createTaskForm.addEventListener('submit', async (e) => {
     } catch (e) { showToast(e.message, 'danger'); }
   });
 
-// Demo checkout helpers
-let lastDemoCheckout = null;
-function openDemoCheckout(info) {
-  lastDemoCheckout = info;
-  document.getElementById('demo-checkout-title').textContent = info.title || 'Task';
-  document.getElementById('demo-checkout-amount').textContent = NPR(info.amount);
-  const modal = new bootstrap.Modal(document.getElementById('demoCheckoutModal'));
-  modal.show();
-}
-
-async function simulateCheckoutSuccess() {
-  // Nothing to call; posting already held funds in demo. Just close modal.
-  bootstrap.Modal.getInstance(document.getElementById('demoCheckoutModal')).hide();
-  showToast('Demo payment authorized', 'success');
-}
-
-async function simulateCheckoutFail() {
-  // Cancel task and close modal
-  try {
-    if (lastDemoCheckout?.taskId) {
-      const res = await fetch(`${API_URL}/tasks/${lastDemoCheckout.taskId}`, { method: 'DELETE', headers: authHeaders() });
-      await res.json();
-    }
-  } catch {}
-  bootstrap.Modal.getInstance(document.getElementById('demoCheckoutModal')).hide();
-  showToast('Demo payment failed — task removed', 'danger');
-  loadMyTasks();
-}
-
-window.simulateCheckoutSuccess = simulateCheckoutSuccess;
-window.simulateCheckoutFail = simulateCheckoutFail;
-window.openDemoCheckout = openDemoCheckout;
-
-// Edit task UI
-let editingTaskId = null;
-function openEditTask(taskId) {
-  editingTaskId = taskId;
-  const t = (window._myTasksCache || []).find(x => x._id === taskId);
-  if (t) {
-    document.getElementById('edit-title').value = t.title || '';
-    document.getElementById('edit-description').value = t.description || '';
-    document.getElementById('edit-price').value = Math.round((t.price||0)/100);
-    document.getElementById('edit-duration').value = t.durationMin || 0;
+  // Demo checkout helpers
+  let lastDemoCheckout = null;
+  function openDemoCheckout(info) {
+    lastDemoCheckout = info;
+    document.getElementById('demo-checkout-title').textContent = info.title || 'Task';
+    document.getElementById('demo-checkout-amount').textContent = NPR(info.amount);
+    const modal = new bootstrap.Modal(document.getElementById('demoCheckoutModal'));
+    modal.show();
   }
-  new bootstrap.Modal(document.getElementById('editTaskModal')).show();
-}
-async function saveEditTask() {
-  if (!editingTaskId) return;
-  const payload = {
-    title: document.getElementById('edit-title').value,
-    description: document.getElementById('edit-description').value,
-    price: parseInt(document.getElementById('edit-price').value,10) * 100,
-    durationMin: parseInt(document.getElementById('edit-duration').value,10) || 0
-  };
-  try {
-    const res = await fetch(`${API_URL}/tasks/${editingTaskId}`, { method: 'PUT', headers: authHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify(payload) });
-    const data = await res.json();
-    if (res.ok) { showToast('Task updated', 'success'); loadMyTasks(); bootstrap.Modal.getInstance(document.getElementById('editTaskModal')).hide(); }
-    else showToast(data.error || 'Failed to update', 'danger');
-  } catch(e) { showToast(e.message, 'danger'); }
-}
-window.openEditTask = openEditTask;
-window.saveEditTask = saveEditTask;
+
+  async function simulateCheckoutSuccess() {
+    // Nothing to call; posting already held funds in demo. Just close modal.
+    bootstrap.Modal.getInstance(document.getElementById('demoCheckoutModal')).hide();
+    showToast('Demo payment authorized', 'success');
+  }
+
+  async function simulateCheckoutFail() {
+    // Cancel task and close modal
+    try {
+      if (lastDemoCheckout?.taskId) {
+        const res = await fetch(`${API_URL}/tasks/${lastDemoCheckout.taskId}`, { method: 'DELETE', headers: authHeaders() });
+        await res.json();
+      }
+    } catch { }
+    bootstrap.Modal.getInstance(document.getElementById('demoCheckoutModal')).hide();
+    showToast('Demo payment failed — task removed', 'danger');
+    loadMyTasks();
+  }
+
+  window.simulateCheckoutSuccess = simulateCheckoutSuccess;
+  window.simulateCheckoutFail = simulateCheckoutFail;
+  window.openDemoCheckout = openDemoCheckout;
+
+  // Edit task UI
+  let editingTaskId = null;
+  function openEditTask(taskId) {
+    editingTaskId = taskId;
+    const t = (window._myTasksCache || []).find(x => x._id === taskId);
+    if (t) {
+      document.getElementById('edit-title').value = t.title || '';
+      document.getElementById('edit-description').value = t.description || '';
+      document.getElementById('edit-price').value = Math.round((t.price || 0) / 100);
+      document.getElementById('edit-duration').value = t.durationMin || 0;
+    }
+    new bootstrap.Modal(document.getElementById('editTaskModal')).show();
+  }
+  async function saveEditTask() {
+    if (!editingTaskId) return;
+    const payload = {
+      title: document.getElementById('edit-title').value,
+      description: document.getElementById('edit-description').value,
+      price: parseInt(document.getElementById('edit-price').value, 10) * 100,
+      durationMin: parseInt(document.getElementById('edit-duration').value, 10) || 0
+    };
+    try {
+      const res = await fetch(`${API_URL}/tasks/${editingTaskId}`, { method: 'PUT', headers: authHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify(payload) });
+      const data = await res.json();
+      if (res.ok) { showToast('Task updated', 'success'); loadMyTasks(); bootstrap.Modal.getInstance(document.getElementById('editTaskModal')).hide(); }
+      else showToast(data.error || 'Failed to update', 'danger');
+    } catch (e) { showToast(e.message, 'danger'); }
+  }
+  window.openEditTask = openEditTask;
+  window.saveEditTask = saveEditTask;
 }
 
 // My Posted Tasks
@@ -684,10 +1213,10 @@ async function loadMyTasks() {
   if (!currentUser) return;
   try {
     const res = await fetch(`${API_URL}/users/${currentUser._id}/tasks/requested`, { headers: authHeaders() });
-const data = await res.json();
+    const data = await res.json();
     window._myTasksCache = data.tasks || [];
     renderMyTasks(window._myTasksCache);
-  } catch {}
+  } catch { }
 }
 
 function renderMyTasks(tasks) {
@@ -705,10 +1234,10 @@ function renderMyTasks(tasks) {
       <div class="mt-2 d-flex gap-2 flex-wrap">
         ${task.status === 'posted' ? `<button class=\"btn btn-outline-secondary btn-sm\" onclick=\"openEditTask('${task._id}')\">Edit</button>` : ''}
         ${task.status === 'posted' ? `<button class=\"btn btn-outline-danger btn-sm\" onclick=\"deleteTask('${task._id}')\">Delete</button>` : ''}
-        ${['accepted','in_progress'].includes(task.status) ? `<button class="btn btn-danger btn-sm" onclick="openLiveTracking('${task._id}')"><i class="bi bi-broadcast"></i> Track Live</button>` : ''}
-        ${['accepted','in_progress'].includes(task.status) ? `<button class="btn btn-outline-danger btn-sm" onclick="deleteTask('${task._id}')">Cancel</button>` : ''}
+        ${['accepted', 'in_progress'].includes(task.status) ? `<button class="btn btn-danger btn-sm" onclick="openLiveTracking('${task._id}')"><i class="bi bi-broadcast"></i> Track Live</button>` : ''}
+        ${['accepted', 'in_progress'].includes(task.status) ? `<button class="btn btn-outline-danger btn-sm" onclick="deleteTask('${task._id}')">Cancel</button>` : ''}
         ${task.status === 'completed' ? `<button class="btn btn-success btn-sm" onclick="approveTask('${task._id}')">Approve & Pay</button>` : ''}
-        ${['accepted','in_progress','completed','paid'].includes(task.status) ? `<button class="btn btn-outline-primary btn-sm" onclick="openChat('${task._id}')">Chat</button>` : ''}
+        ${['accepted', 'in_progress', 'completed', 'paid'].includes(task.status) ? `<button class="btn btn-outline-primary btn-sm" onclick="openChat('${task._id}')">Chat</button>` : ''}
 ${task.proofUrl ? (/(\.mp4|\.webm|\.mov)$/i.test(task.proofUrl) ? `<video src=\"${API_URL}${task.proofUrl}\" class=\"mt-2 rounded\" style=\"max-height:150px;width:100%\" controls playsinline></video>` : `<a class=\"btn btn-outline-secondary btn-sm\" href=\"${API_URL}${task.proofUrl}\" target=\"_blank\">View Proof</a>`) : ''}
         ${task.status === 'paid' ? `<button class="btn btn-outline-success btn-sm" onclick="rateTask('${task._id}')">Rate</button>` : ''}
       </div>
@@ -720,11 +1249,11 @@ ${task.proofUrl ? (/(\.mp4|\.webm|\.mov)$/i.test(task.proofUrl) ? `<video src=\"
 async function loadNearbyTasks() {
   if (!taskerLocation) return showToast('Set your location first', 'warning');
   try {
-const url = `${API_URL}/tasks/nearby?lat=${taskerLocation.lat}&lng=${taskerLocation.lng}&radiusKm=${taskerSearchRadiusKm}`;
+    const url = `${API_URL}/tasks/nearby?lat=${taskerLocation.lat}&lng=${taskerLocation.lng}&radiusKm=${taskerSearchRadiusKm}`;
     const res = await fetch(url, { headers: authHeaders() });
     const data = await res.json();
     renderNearbyTasks(data.tasks || []);
-  } catch {}
+  } catch { }
 }
 
 function renderNearbyTasks(tasks) {
@@ -765,14 +1294,14 @@ async function loadMyAcceptedTasks() {
         </div>
         <div class="mt-2 d-flex gap-2 flex-wrap">
           ${task.status === 'accepted' ? `<button class="btn btn-secondary btn-sm" onclick="startTask('${task._id}')">Start</button>` : ''}
-          ${['accepted','in_progress'].includes(task.status) ? `<button class="btn btn-danger btn-sm" onclick="openLiveTracking('${task._id}')"><i class="bi bi-broadcast"></i> Share Location</button>` : ''}
-          ${['accepted','in_progress'].includes(task.status) ? `<button class="btn btn-success btn-sm" onclick="showUploadProof('${task._id}')">Upload Proof</button>` : ''}
-          ${['accepted','in_progress'].includes(task.status) ? `<button class="btn btn-outline-danger btn-sm" onclick="rejectTask('${task._id}')">Reject</button>` : ''}
-          ${['accepted','in_progress','completed','paid'].includes(task.status) ? `<button class="btn btn-outline-primary btn-sm" onclick="openChat('${task._id}')">Chat</button>` : ''}
+          ${['accepted', 'in_progress'].includes(task.status) ? `<button class="btn btn-danger btn-sm" onclick="openLiveTracking('${task._id}')"><i class="bi bi-broadcast"></i> Share Location</button>` : ''}
+          ${['accepted', 'in_progress'].includes(task.status) ? `<button class="btn btn-success btn-sm" onclick="showUploadProof('${task._id}')">Upload Proof</button>` : ''}
+          ${['accepted', 'in_progress'].includes(task.status) ? `<button class="btn btn-outline-danger btn-sm" onclick="rejectTask('${task._id}')">Reject</button>` : ''}
+          ${['accepted', 'in_progress', 'completed', 'paid'].includes(task.status) ? `<button class="btn btn-outline-primary btn-sm" onclick="openChat('${task._id}')">Chat</button>` : ''}
         </div>
       </div>
     `).join('');
-  } catch {}
+  } catch { }
 }
 
 async function rejectTask(taskId) {
@@ -868,7 +1397,7 @@ async function loadChatMessages(taskId) {
     const res = await fetch(`${API_URL}/tasks/${taskId}/messages`, { headers: authHeaders() });
     const data = await res.json();
     (data.messages || []).forEach(m => appendChatMessage(m.from === currentUser._id ? 'You' : 'Them', m.text, m.createdAt));
-  } catch {}
+  } catch { }
 }
 
 async function sendChatMessage() {
@@ -897,9 +1426,9 @@ async function loadStats() {
       document.getElementById('stat-posted-total').textContent = m.postedTotal;
       document.getElementById('stat-tasker-earned').textContent = NPR(m.taskerEarned);
       document.getElementById('stat-completed').textContent = m.taskerCompleted;
-const feesEl = document.getElementById('stat-fees-pending'); if (feesEl) feesEl.textContent = NPR((m.feesFromMyEarnings ?? 0) || (m.platformFeesPending ?? 0));
+      const feesEl = document.getElementById('stat-fees-pending'); if (feesEl) feesEl.textContent = NPR((m.feesFromMyEarnings ?? 0) || (m.platformFeesPending ?? 0));
     }
-  } catch {}
+  } catch { }
 }
 
 // Profile & Wallet
@@ -924,7 +1453,7 @@ async function showWallet() {
 }
 
 // Utils
-function escapeHtml(s) { return String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;' }[c])); }
+function escapeHtml(s) { return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', '\'': '&#39;' }[c])); }
 function emptyState(title, text) { return `<div class=\"empty-state\"><div class=\"empty-state-icon\"><i class=\\\"bi bi-inbox\\\"></i></div><div class=\"empty-state-title\">${escapeHtml(title)}</div><div class=\"empty-state-text\">${escapeHtml(text)}</div></div>`; }
 
 // Toast helper
@@ -998,83 +1527,80 @@ window.showTaskToast = showTaskToast;
 window.deleteTask = deleteTask;
 
 // Live Tracking System
-let liveTrackingMap = null;
-let taskerMarkerLive = null;
-let requesterMarkerLive = null;
-let routeLine = null;
+let liveTrackingMapId = null;
+let taskerMarkerLiveId = null;
+let requesterMarkerLiveId = null;
 let trackingTaskId = null;
 let locationUpdateInterval = null;
 
-window.openLiveTracking = async function(taskId) {
+window.openLiveTracking = async function (taskId) {
   trackingTaskId = taskId;
   const modal = new bootstrap.Modal(document.getElementById('liveTrackingModal'));
   modal.show();
-  
+
   setTimeout(() => initLiveTrackingMap(taskId), 300);
   startLocationSharing(taskId);
 };
 
 function initLiveTrackingMap(taskId) {
-  if (!window.maplibregl) return;
-  
+  if (!galliMapsService.isLoaded()) {
+    console.warn('GalliMaps not loaded yet, retrying...');
+
+    // Retry up to 5 times
+    if (!window._liveTrackingMapInitRetries) window._liveTrackingMapInitRetries = 0;
+    window._liveTrackingMapInitRetries++;
+
+    if (window._liveTrackingMapInitRetries < 5) {
+      setTimeout(() => initLiveTrackingMap(taskId), 500);
+    } else {
+      showToast('Unable to load tracking map. Please refresh the page.', 'danger');
+      window._liveTrackingMapInitRetries = 0;
+    }
+    return;
+  }
+
   const mapEl = document.getElementById('live-tracking-map');
   if (!mapEl) return;
-  
-  if (!liveTrackingMap) {
-    // GTA V style dark map for live tracking
-    liveTrackingMap = new maplibregl.Map({
-      container: mapEl,
-      style: {
-        version: 8,
-        sources: {
-          'dark-tiles': {
-            type: 'raster',
-            tiles: ['https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png'],
-            tileSize: 256,
-            attribution: '© CartoDB'
+
+  if (!liveTrackingMapId) {
+    try {
+      // Initialize GalliMaps for live tracking
+      liveTrackingMapId = galliMapsService.initializeMap({
+        containerId: 'live-tracking-map',
+        center: [selectedLocation.lat, selectedLocation.lng],
+        zoom: 14,
+        clickable: false,
+        onLoad: () => {
+          console.log('GalliMaps loaded for live tracking');
+          window._liveTrackingMapInitRetries = 0; // Reset retry counter on success
+
+          // Add zoom controls after map loads
+          try {
+            galliMapsService.addZoomControls(liveTrackingMapId, 'top-right');
+          } catch (error) {
+            console.error('Failed to add zoom controls:', error);
           }
         },
-        layers: [{
-          id: 'dark-tiles',
-          type: 'raster',
-          source: 'dark-tiles',
-          minzoom: 0,
-          maxzoom: 22
-        }]
-      },
-      center: [selectedLocation.lng, selectedLocation.lat],
-      zoom: 14
-    });
-    
-    liveTrackingMap.addControl(new maplibregl.NavigationControl(), 'top-right');
-    
-    // Add current location button
-    const locationControl = document.createElement('div');
-    locationControl.className = 'maplibregl-ctrl maplibregl-ctrl-group';
-    locationControl.innerHTML = `
-      <button class="maplibre-style-btn" onclick="centerOnCurrentLocation()" title="My Location">
-        <i class="bi bi-crosshair"></i> My Location
-      </button>
-    `;
-    liveTrackingMap.addControl({ onAdd: () => locationControl, onRemove: () => {} }, 'top-left');
-    
-    // Add style switcher
-    const styleControl = document.createElement('div');
-    styleControl.className = 'maplibregl-ctrl maplibregl-ctrl-group';
-    styleControl.innerHTML = `
-      <button class="maplibre-style-btn" onclick="switchLiveMapStyle('gta')" title="GTA V Dark">
-        <i class="bi bi-moon-stars-fill"></i>
-      </button>
-      <button class="maplibre-style-btn" onclick="switchLiveMapStyle('street')" title="Street View">
-        <i class="bi bi-map"></i>
-      </button>
-      <button class="maplibre-style-btn" onclick="switchLiveMapStyle('satellite')" title="Satellite View">
-        <i class="bi bi-globe"></i>
-      </button>
-    `;
-    liveTrackingMap.addControl({ onAdd: () => styleControl, onRemove: () => {} }, 'bottom-left');
+        onError: (error) => {
+          console.error('GalliMaps live tracking error:', error);
+          const userMessage = galliMapsService.handleError(error, 'live tracking');
+          showToast(userMessage, 'danger');
+
+          // Reset map ID to allow retry
+          liveTrackingMapId = null;
+        }
+      });
+    } catch (error) {
+      console.error('Failed to initialize live tracking map:', error);
+      const userMessage = galliMapsService.handleError(error, 'live tracking initialization');
+      showToast(userMessage, 'danger');
+
+      // Reset map ID to allow retry
+      liveTrackingMapId = null;
+      return;
+    }
   }
-  
+
   loadTaskTrackingInfo(taskId);
 }
 
@@ -1083,17 +1609,17 @@ async function loadTaskTrackingInfo(taskId) {
     const res = await fetch(`${API_URL}/tasks/${taskId}`, { headers: authHeaders() });
     const data = await res.json();
     const task = data.task;
-    
+
     if (!task) return;
-    
+
     const taskerRes = await fetch(`${API_URL}/users/${task.assignedTaskerId}`, { headers: authHeaders() });
     const taskerData = await taskerRes.json();
     const tasker = taskerData.user;
-    
+
     const requesterRes = await fetch(`${API_URL}/users/${task.requesterId}`, { headers: authHeaders() });
     const requesterData = await requesterRes.json();
     const requester = requesterData.user;
-    
+
     document.getElementById('tasker-info').innerHTML = `
       <div class="d-flex align-items-center gap-2 mb-2">
         <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center" style="width:40px;height:40px;">
@@ -1110,7 +1636,7 @@ async function loadTaskTrackingInfo(taskId) {
         <div class="mt-2"><strong>Status:</strong> <span class="badge bg-success">En Route</span></div>
       </div>
     `;
-    
+
     document.getElementById('task-info-tracking').innerHTML = `
       <div><strong>${escapeHtml(task.title)}</strong></div>
       <div class="small text-muted">${escapeHtml(task.description || '')}</div>
@@ -1126,22 +1652,34 @@ async function loadTaskTrackingInfo(taskId) {
         <small class="text-muted">Task ${task.status}</small>
       </div>
     `;
-    
+
     if (task.location && task.location.coordinates) {
       const [lng, lat] = task.location.coordinates;
-      
-      if (!requesterMarkerLive) {
-        requesterMarkerLive = new maplibregl.Marker({ color: '#10b981' })
-          .setLngLat([lng, lat])
-          .setPopup(new maplibregl.Popup().setHTML('<strong>Task Location</strong>'))
-          .addTo(liveTrackingMap);
+
+      // Add red marker for task location
+      if (!requesterMarkerLiveId) {
+        try {
+          requesterMarkerLiveId = galliMapsService.addMarker(liveTrackingMapId, {
+            latLng: [lat, lng],
+            color: '#dc2626', // Red for task location
+            draggable: false,
+            popupText: 'Task Location'
+          });
+        } catch (error) {
+          console.error('Failed to add task location marker:', error);
+        }
       }
-      
-      liveTrackingMap.setCenter([lng, lat]);
+
+      // Center map on task location
+      try {
+        galliMapsService.setCenter(liveTrackingMapId, [lat, lng], 14, false);
+      } catch (error) {
+        console.error('Failed to center map:', error);
+      }
     }
-    
+
     listenForLocationUpdates(taskId);
-    
+
   } catch (e) {
     console.error('Failed to load tracking info:', e);
   }
@@ -1151,12 +1689,12 @@ let lastPosition = null;
 
 function startLocationSharing(taskId) {
   if (locationUpdateInterval) clearInterval(locationUpdateInterval);
-  
+
   if (navigator.geolocation) {
     locationUpdateInterval = setInterval(() => {
       navigator.geolocation.getCurrentPosition((pos) => {
         const { latitude, longitude, heading } = pos.coords;
-        
+
         // Calculate heading from movement if not provided by device
         let calculatedHeading = heading;
         if (lastPosition && (!heading || heading === null)) {
@@ -1164,7 +1702,7 @@ function startLocationSharing(taskId) {
           const dLat = latitude - lastPosition.lat;
           calculatedHeading = Math.atan2(dLng, dLat) * (180 / Math.PI);
         }
-        
+
         if (socket && socket.connected) {
           socket.emit('location_update', {
             taskId,
@@ -1173,7 +1711,7 @@ function startLocationSharing(taskId) {
             heading: calculatedHeading
           });
         }
-        
+
         lastPosition = { lat: latitude, lng: longitude };
       }, (err) => {
         console.warn('Location error:', err.message);
@@ -1186,150 +1724,80 @@ function startLocationSharing(taskId) {
   }
 }
 
-window.centerOnCurrentLocation = function() {
-  if (!liveTrackingMap) return;
-  
-  if (navigator.geolocation) {
-    navigator.geolocation.getCurrentPosition((pos) => {
-      const { latitude, longitude } = pos.coords;
-      liveTrackingMap.flyTo({
-        center: [longitude, latitude],
-        zoom: 16,
-        duration: 1000
-      });
-      
-      // Add a temporary pulse marker
-      const pulseEl = document.createElement('div');
-      pulseEl.className = 'current-location-pulse';
-      pulseEl.style.cssText = `
-        width: 20px;
-        height: 20px;
-        background: #3b82f6;
-        border-radius: 50%;
-        border: 3px solid white;
-        box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7);
-        animation: pulse 2s infinite;
-      `;
-      
-      const tempMarker = new maplibregl.Marker({ element: pulseEl })
-        .setLngLat([longitude, latitude])
-        .addTo(liveTrackingMap);
-      
-      setTimeout(() => tempMarker.remove(), 3000);
-    }, (err) => {
-      showToast('Unable to get your location', 'danger');
-    });
-  } else {
-    showToast('Geolocation not supported', 'danger');
-  }
-};
-
 function listenForLocationUpdates(taskId) {
   if (!socket) return;
-  
+
   socket.off('tasker_location');
   socket.on('tasker_location', (data) => {
     if (data.taskId !== taskId) return;
-    
-    const { lat, lng, heading } = data;
-    
-    // Create custom arrow marker for tasker
-    if (!taskerMarkerLive) {
-      const el = document.createElement('div');
-      el.className = 'tasker-marker-arrow';
-      el.innerHTML = `
-        <div style="
-          width: 40px;
-          height: 40px;
-          background: #dc2626;
-          border-radius: 50%;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-          border: 3px solid white;
-          transform: rotate(${heading || 0}deg);
-        ">
-          <i class="bi bi-arrow-up-short" style="color: white; font-size: 24px; font-weight: bold;"></i>
-        </div>
-      `;
-      
-      taskerMarkerLive = new maplibregl.Marker({ element: el })
-        .setLngLat([lng, lat])
-        .setPopup(new maplibregl.Popup().setHTML('<strong>Tasker Location</strong><br><small>Live</small>'))
-        .addTo(liveTrackingMap);
+
+    const { lat, lng } = data;
+
+    // Add or update blue marker for tasker location
+    if (!taskerMarkerLiveId) {
+      try {
+        taskerMarkerLiveId = galliMapsService.addMarker(liveTrackingMapId, {
+          latLng: [lat, lng],
+          color: '#3b82f6', // Blue for tasker location
+          draggable: false,
+          popupText: 'Tasker Location (Live)'
+        });
+      } catch (error) {
+        console.error('Failed to add tasker marker:', error);
+        return;
+      }
     } else {
-      taskerMarkerLive.setLngLat([lng, lat]);
-      
-      // Update arrow rotation based on heading
-      if (heading !== undefined) {
-        const markerEl = taskerMarkerLive.getElement().querySelector('div');
-        if (markerEl) {
-          markerEl.style.transform = `rotate(${heading}deg)`;
-        }
+      // Update marker position with smooth animation
+      try {
+        galliMapsService.updateMarkerPosition(liveTrackingMapId, taskerMarkerLiveId, [lat, lng]);
+      } catch (error) {
+        console.error('Failed to update tasker marker:', error);
+        return;
       }
     }
-    
-    if (requesterMarkerLive) {
-      const taskerPos = taskerMarkerLive.getLngLat();
-      const requesterPos = requesterMarkerLive.getLngLat();
-      
-      if (liveTrackingMap.getSource('route')) {
-        liveTrackingMap.getSource('route').setData({
-          type: 'Feature',
-          geometry: {
-            type: 'LineString',
-            coordinates: [[taskerPos.lng, taskerPos.lat], [requesterPos.lng, requesterPos.lat]]
-          }
-        });
-      } else {
-        liveTrackingMap.addSource('route', {
-          type: 'geojson',
-          data: {
-            type: 'Feature',
-            geometry: {
-              type: 'LineString',
-              coordinates: [[taskerPos.lng, taskerPos.lat], [requesterPos.lng, requesterPos.lat]]
+
+    // Auto-fit bounds to show both markers
+    if (requesterMarkerLiveId && taskerMarkerLiveId) {
+      try {
+        const markers = galliMapsService.markers.get(liveTrackingMapId);
+        const taskerMarkerData = markers.get(taskerMarkerLiveId);
+        const requesterMarkerData = markers.get(requesterMarkerLiveId);
+
+        if (taskerMarkerData && requesterMarkerData) {
+          const bounds = [
+            taskerMarkerData.latLng,
+            requesterMarkerData.latLng
+          ];
+
+          galliMapsService.fitBounds(liveTrackingMapId, bounds, {
+            padding: 100,
+            duration: 1000
+          });
+
+          // Calculate distance and ETA
+          const distance = calculateDistance(
+            taskerMarkerData.latLng[0],
+            taskerMarkerData.latLng[1],
+            requesterMarkerData.latLng[0],
+            requesterMarkerData.latLng[1]
+          );
+          const eta = Math.round(distance / 0.5); // Assuming 30 km/h average speed
+
+          // Update status display
+          const statusEl = document.querySelector('#tasker-info .badge');
+          if (statusEl) {
+            if (distance < 0.1) {
+              statusEl.textContent = 'Arrived';
+              statusEl.className = 'badge bg-success';
+            } else {
+              statusEl.textContent = `${distance.toFixed(2)} km away (ETA: ${eta} min)`;
+              statusEl.className = 'badge bg-info';
             }
           }
-        });
-        
-        // Add animated route line
-        liveTrackingMap.addLayer({
-          id: 'route',
-          type: 'line',
-          source: 'route',
-          paint: {
-            'line-color': '#3b82f6',
-            'line-width': 4,
-            'line-opacity': 0.8
-          }
-        });
-        
-        // Add animated dashed line on top
-        liveTrackingMap.addLayer({
-          id: 'route-dashed',
-          type: 'line',
-          source: 'route',
-          paint: {
-            'line-color': '#ffffff',
-            'line-width': 2,
-            'line-dasharray': [2, 4],
-            'line-opacity': 0.9
-          }
-        });
+        }
+      } catch (error) {
+        console.error('Failed to fit bounds:', error);
       }
-      
-      const bounds = new maplibregl.LngLatBounds()
-        .extend([taskerPos.lng, taskerPos.lat])
-        .extend([requesterPos.lng, requesterPos.lat]);
-      
-      liveTrackingMap.fitBounds(bounds, { padding: 100 });
-      
-      const distance = calculateDistance(taskerPos.lat, taskerPos.lng, requesterPos.lat, requesterPos.lng);
-      const eta = Math.round(distance / 0.5);
-      
-      showToast(`Tasker is ${distance.toFixed(2)} km away (ETA: ${eta} min)`, 'info', 3000);
     }
   });
 }
@@ -1338,152 +1806,35 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
   const R = 6371;
   const dLat = (lat2 - lat1) * Math.PI / 180;
   const dLon = (lon2 - lon1) * Math.PI / 180;
-  const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-            Math.sin(dLon/2) * Math.sin(dLon/2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return R * c;
 }
 
-window.switchLiveMapStyle = function(style) {
-  if (!liveTrackingMap) return;
-  
-  const styles = {
-    gta: {
-      version: 8,
-      sources: {
-        'dark-tiles': {
-          type: 'raster',
-          tiles: ['https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png'],
-          tileSize: 256,
-          attribution: '© CartoDB'
-        }
-      },
-      layers: [{
-        id: 'dark-tiles',
-        type: 'raster',
-        source: 'dark-tiles',
-        minzoom: 0,
-        maxzoom: 22
-      }]
-    },
-    street: 'https://tiles.openfreemap.org/styles/liberty',
-    satellite: {
-      version: 8,
-      sources: {
-        'satellite': {
-          type: 'raster',
-          tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'],
-          tileSize: 256
-        }
-      },
-      layers: [{ id: 'satellite', type: 'raster', source: 'satellite' }]
-    }
-  };
-  
-  const center = liveTrackingMap.getCenter();
-  const zoom = liveTrackingMap.getZoom();
-  
-  liveTrackingMap.setStyle(styles[style]);
-  
-  liveTrackingMap.once('styledata', () => {
-    liveTrackingMap.setCenter(center);
-    liveTrackingMap.setZoom(zoom);
-    
-    if (taskerMarkerLive) taskerMarkerLive.addTo(liveTrackingMap);
-    if (requesterMarkerLive) requesterMarkerLive.addTo(liveTrackingMap);
-    if (routeLine && liveTrackingMap.getSource('route')) {
-      // Re-add route line after style change
-      const coords = routeLine;
-      liveTrackingMap.addSource('route', {
-        type: 'geojson',
-        data: {
-          type: 'Feature',
-          geometry: {
-            type: 'LineString',
-            coordinates: coords
-          }
-        }
-      });
-      liveTrackingMap.addLayer({
-        id: 'route',
-        type: 'line',
-        source: 'route',
-        paint: {
-          'line-color': '#3b82f6',
-          'line-width': 4,
-          'line-opacity': 0.8
-        }
-      });
-    }
-  });
-};
-
+// Clean up when live tracking modal is closed
 document.getElementById('liveTrackingModal')?.addEventListener('hidden.bs.modal', () => {
   if (locationUpdateInterval) {
     clearInterval(locationUpdateInterval);
     locationUpdateInterval = null;
   }
   if (socket) socket.off('tasker_location');
-});
 
-// Map style switcher
-window.switchMapStyle = function(mapType, style) {
-  const targetMap = mapType === 'map' ? map : taskerMap;
-  const targetMarker = mapType === 'map' ? marker : taskerMarker;
-  
-  if (!targetMap) return;
-  
-  const styles = {
-    gta: {
-      version: 8,
-      sources: {
-        'dark-tiles': {
-          type: 'raster',
-          tiles: ['https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png'],
-          tileSize: 256,
-          attribution: '© CartoDB'
-        }
-      },
-      layers: [{
-        id: 'dark-tiles',
-        type: 'raster',
-        source: 'dark-tiles',
-        minzoom: 0,
-        maxzoom: 22
-      }]
-    },
-    street: 'https://tiles.openfreemap.org/styles/liberty',
-    satellite: {
-      version: 8,
-      sources: {
-        'satellite': {
-          type: 'raster',
-          tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'],
-          tileSize: 256,
-          attribution: '© Esri'
-        }
-      },
-      layers: [{
-        id: 'satellite',
-        type: 'raster',
-        source: 'satellite',
-        minzoom: 0,
-        maxzoom: 22
-      }]
+  // Clean up markers
+  if (liveTrackingMapId) {
+    if (taskerMarkerLiveId) {
+      try {
+        galliMapsService.removeMarker(liveTrackingMapId, taskerMarkerLiveId);
+      } catch (e) { }
+      taskerMarkerLiveId = null;
     }
-  };
-  
-  const center = targetMap.getCenter();
-  const zoom = targetMap.getZoom();
-  const markerPos = targetMarker.getLngLat();
-  
-  targetMap.setStyle(styles[style]);
-  
-  targetMap.once('styledata', () => {
-    targetMap.setCenter(center);
-    targetMap.setZoom(zoom);
-    targetMarker.setLngLat(markerPos);
-  });
-};
+    if (requesterMarkerLiveId) {
+      try {
+        galliMapsService.removeMarker(liveTrackingMapId, requesterMarkerLiveId);
+      } catch (e) { }
+      requesterMarkerLiveId = null;
+    }
+  }
+});
 

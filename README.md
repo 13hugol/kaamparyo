@@ -50,8 +50,8 @@
 ### Frontend
 - **Vanilla JavaScript** - No framework overhead, pure performance
 - **Bootstrap 5** - Modern, responsive UI components
-- **MapLibre GL** - Free, open-source mapping library
-- **OpenFreeMap** - Free map tiles (no API key needed)
+- **GalliMaps** - Nepal-focused mapping service with local coverage
+- **Socket.IO** - Real-time communication for live tracking
 
 ### Infrastructure
 - **Vercel** - Serverless deployment (free tier)
@@ -291,8 +291,9 @@ tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapS
 
 ### Maps not loading?
 - Check browser console for errors
-- Verify MapLibre GL script is loaded
-- Try switching map style
+- Verify GalliMaps script is loaded from CDN
+- Check network connectivity
+- Ensure access token is valid
 
 ### OTP not received?
 - Check server logs for OTP code
@@ -339,11 +340,11 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 🙏 Acknowledgments
 
-- [MapLibre GL](https://maplibre.org/) - Free mapping library
-- [OpenFreeMap](https://openfreemap.org/) - Free map tiles
-- [CartoDB](https://carto.com/) - Beautiful dark map theme
+- [GalliMaps](https://gallimap.com/) - Nepal-focused mapping service
 - [Socket.IO](https://socket.io/) - Real-time communication
 - [Bootstrap](https://getbootstrap.com/) - UI framework
+- [MongoDB](https://www.mongodb.com/) - Database platform
+- [Vercel](https://vercel.com/) - Deployment platform
 
 ---
 
