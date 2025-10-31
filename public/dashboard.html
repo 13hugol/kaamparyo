@@ -38,7 +38,21 @@
 
             <!-- Tasks List -->
             <div class="bg-gray-800 rounded-xl p-6 shadow-xl">
-                <h2 class="text-xl font-bold mb-4">Available Tasks</h2>
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-xl font-bold">Available Tasks</h2>
+                    <button id="pickLocationBtn" class="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm flex items-center gap-1">
+                        <span class="material-icons-outlined text-sm">location_on</span>
+                        Pick on Map
+                    </button>
+                </div>
+                <div id="locationInfo" class="hidden mb-3 p-2 bg-blue-900/30 rounded text-sm">
+                    <div class="flex justify-between items-center">
+                        <span id="selectedLocationText" class="text-blue-300"></span>
+                        <button id="clearLocationBtn" class="text-red-400 hover:text-red-300">
+                            <span class="material-icons-outlined text-sm">close</span>
+                        </button>
+                    </div>
+                </div>
                 <div id="tasksList" class="space-y-4 max-h-[500px] overflow-y-auto">
                     <p class="text-gray-400">Loading tasks...</p>
                 </div>
@@ -115,6 +129,10 @@
         }
 
         // Initialize Galli Maps Vector Plugin
+        let pickingLocation = false;
+        let pickLocationMarker = null;
+        let selectedLocation = null;
+
         function initMap() {
             const galliMapsObject = {
                 accessToken: galliToken,
@@ -124,8 +142,9 @@
                     zoom: 13,
                     maxZoom: 25,
                     minZoom: 5,
-                    clickable: false
-                }
+                    clickable: true
+                },
+                customClickFunctions: [handleMapClick]
             };
 
             map = new GalliMapPlugin(galliMapsObject);
@@ -137,6 +156,110 @@
                 latLng: [userLocation.lat, userLocation.lng]
             };
             map.displayPinMarker(userMarker);
+        }
+
+        // Handle map click for location picking
+        function handleMapClick(event) {
+            if (!pickingLocation) return;
+
+            const lat = event.lngLat.lat;
+            const lng = event.lngLat.lng;
+
+            // Remove old pick marker
+            if (pickLocationMarker) {
+                try {
+                    map.removePinMarker(pickLocationMarker);
+                } catch (e) {}
+            }
+
+            // Add new pick marker
+            const marker = {
+                color: "#10B981",
+                draggable: false,
+                latLng: [lat, lng]
+            };
+            pickLocationMarker = map.displayPinMarker(marker);
+
+            // Save selected location
+            selectedLocation = { lat, lng };
+
+            // Update UI
+            document.getElementById('locationInfo').classList.remove('hidden');
+            document.getElementById('selectedLocationText').textContent = `📍 ${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+            document.getElementById('pickLocationBtn').textContent = '✓ Location Selected';
+            document.getElementById('pickLocationBtn').classList.remove('bg-blue-500', 'hover:bg-blue-600');
+            document.getElementById('pickLocationBtn').classList.add('bg-green-500', 'hover:bg-green-600');
+
+            // Load tasks for selected location
+            pickingLocation = false;
+            loadTasksAtLocation(lat, lng);
+        }
+
+        // Pick location button
+        document.getElementById('pickLocationBtn').addEventListener('click', () => {
+            if (selectedLocation) {
+                // Already selected, clear it
+                clearSelectedLocation();
+            } else {
+                // Start picking
+                pickingLocation = true;
+                document.getElementById('pickLocationBtn').innerHTML = '<span class="material-icons-outlined text-sm">my_location</span> Click on Map';
+                document.getElementById('pickLocationBtn').classList.add('animate-pulse');
+                alert('Click anywhere on the map to select a location');
+            }
+        });
+
+        // Clear location button
+        document.getElementById('clearLocationBtn').addEventListener('click', () => {
+            clearSelectedLocation();
+        });
+
+        function clearSelectedLocation() {
+            selectedLocation = null;
+            pickingLocation = false;
+
+            // Remove pick marker
+            if (pickLocationMarker) {
+                try {
+                    map.removePinMarker(pickLocationMarker);
+                } catch (e) {}
+                pickLocationMarker = null;
+            }
+
+            // Reset UI
+            document.getElementById('locationInfo').classList.add('hidden');
+            document.getElementById('pickLocationBtn').innerHTML = '<span class="material-icons-outlined text-sm">location_on</span> Pick on Map';
+            document.getElementById('pickLocationBtn').classList.remove('bg-green-500', 'hover:bg-green-600', 'animate-pulse');
+            document.getElementById('pickLocationBtn').classList.add('bg-blue-500', 'hover:bg-blue-600');
+
+            // Load tasks at user location
+            loadNearbyTasks();
+        }
+
+        // Load tasks at specific location
+        async function loadTasksAtLocation(lat, lng) {
+            try {
+                const token = localStorage.getItem('token');
+                const res = await fetch(`/tasks/nearby?lat=${lat}&lng=${lng}&radiusKm=10`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                
+                if (!res.ok) {
+                    throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+                }
+                
+                const data = await res.json();
+                displayTasks(data.tasks || []);
+
+                // Center map on selected location
+                map.map.flyTo({
+                    center: [lng, lat],
+                    zoom: 14
+                });
+            } catch (e) {
+                console.error('Load tasks error:', e);
+                document.getElementById('tasksList').innerHTML = '<p class="text-red-400">Failed to load tasks. Please try again.</p>';
+            }
         }
 
         // Load nearby tasks
