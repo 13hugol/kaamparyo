@@ -1,478 +1,505 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <meta name="theme-color" content="#dc2626">
-    <link rel="icon" href="/logo.png" type="image/png">
-    <title>Home - KaamParyo</title>
-    
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css">
-    <style>
-        .page-card {
-            transition: all 0.3s ease;
-            cursor: pointer;
-            border: 2px solid transparent;
-            height: 100%;
-        }
-        .page-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 10px 30px rgba(0,0,0,0.15);
-            border-color: #dc2626;
-        }
-        .page-icon {
-            font-size: 3rem;
-            margin-bottom: 1rem;
-            color: #dc2626;
-        }
-        .quick-stats {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            border-radius: 15px;
-            padding: 2rem;
-            margin-bottom: 2rem;
-        }
-        .stat-item {
-            text-align: center;
-        }
-        .stat-value {
-            font-size: 2rem;
-            font-weight: bold;
-        }
-        .stat-label {
-            font-size: 0.9rem;
-            opacity: 0.9;
-        }
-    </style>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+      <meta name="theme-color" content="#dc2626">
+      <link rel="icon" href="/logo.png" type="image/png">
+      <title>Home - KaamParyo</title>
+
+      <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+      <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+      <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+            rel="stylesheet">
+      <link rel="stylesheet" href="styles.css">
+      <style>
+            .page-card {
+                  transition: all 0.3s ease;
+                  cursor: pointer;
+                  border: 2px solid transparent;
+                  height: 100%;
+            }
+
+            .page-card:hover {
+                  transform: translateY(-5px);
+                  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+                  border-color: #dc2626;
+            }
+
+            .page-icon {
+                  font-size: 3rem;
+                  margin-bottom: 1rem;
+                  color: #dc2626;
+            }
+
+            .quick-stats {
+                  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                  color: white;
+                  border-radius: 15px;
+                  padding: 2rem;
+                  margin-bottom: 2rem;
+            }
+
+            .stat-item {
+                  text-align: center;
+            }
+
+            .stat-value {
+                  font-size: 2rem;
+                  font-weight: bold;
+            }
+
+            .stat-label {
+                  font-size: 0.9rem;
+                  opacity: 0.9;
+            }
+      </style>
 </head>
+
 <body>
-    <nav class="navbar navbar-expand-lg navbar-light">
-        <div class="container">
-            <a class="navbar-brand d-flex align-items-center gap-2" href="/">
-                <img src="/logo.png" alt="KP" style="height:28px;width:28px;border-radius:6px;object-fit:cover">
-                <span>KaamParyo</span>
-                <small class="text-muted fw-normal ms-1">(KP)</small>
-            </a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <!-- Navigation for logged in users -->
-                <ul class="navbar-nav me-auto d-none d-lg-flex" id="nav-links">
-                    <li class="nav-item">
-                        <a class="nav-link active" href="/"><i class="bi bi-house-door"></i> Home</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="mypost.html"><i class="bi bi-clipboard-check"></i> My Posts</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="available.html"><i class="bi bi-search"></i> Available</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="activity.html"><i class="bi bi-hourglass-split"></i> Active</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="stats.html"><i class="bi bi-graph-up"></i> Stats</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="profile.html"><i class="bi bi-person"></i> Profile</a>
-                    </li>
-                </ul>
-                <ul class="navbar-nav ms-auto align-items-center">
-                    <!-- Login button (shown when not logged in) -->
-                    <li class="nav-item" id="nav-login">
-                        <button class="btn btn-outline-primary" onclick="showLogin()">
-                            <i class="bi bi-box-arrow-in-right"></i> Login
-                        </button>
-                    </li>
-                    <!-- User menu (shown when logged in) -->
-                    <li class="nav-item hidden" id="nav-user">
-                        <button id="online-toggle-btn" class="btn btn-outline-secondary me-2" onclick="toggleOnline()">
-                            <i class="bi bi-toggle-off"></i> Go Online
-                        </button>
-                        <div class="dropdown d-inline">
-                            <button class="btn btn-light dropdown-toggle" type="button" data-bs-toggle="dropdown">
-                                <i class="bi bi-person-circle"></i> <span id="user-name">User</span>
-                            </button>
-                            <ul class="dropdown-menu dropdown-menu-end">
-                                <li><a class="dropdown-item" href="profile.html"><i class="bi bi-wallet2"></i> Wallet</a></li>
-                                <li><hr class="dropdown-divider"></li>
-                                <li><a class="dropdown-item text-danger" href="#" onclick="logout()"><i class="bi bi-box-arrow-right"></i> Logout</a></li>
-                            </ul>
-                        </div>
-                    </li>
-                </ul>
-            </div>
-        </div>
-    </nav>
-
-    <!-- Landing Page (shown when not logged in) -->
-    <div id="landing-section" class="hidden">
-        <div class="hero">
-            <div class="container hero-content">
-                <div class="row align-items-center">
-                    <div class="col-lg-7">
-                        <h1>KaamParyo — Get Things Done</h1>
-                        <p class="lead">Connect with people nearby for quick tasks. From groceries to errands, find help in minutes or earn by helping others.</p>
-                        <div class="hero-buttons">
-                            <button class="btn btn-hero btn-hero-primary" onclick="showLogin()">
-                                <i class="bi bi-rocket-takeoff"></i> Get Started
-                            </button>
-                            <button class="btn btn-hero btn-hero-outline" onclick="scrollToFeatures()">
-                                <i class="bi bi-info-circle"></i> Learn More
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <section id="features-section" class="py-5 bg-light">
+      <nav class="navbar navbar-expand-lg navbar-light">
             <div class="container">
-                <h2 class="text-center mb-5">How It Works</h2>
-                <div class="row g-4">
-                    <div class="col-md-4">
-                        <div class="card h-100 border-0 shadow-sm">
-                            <div class="card-body text-center">
-                                <div class="feature-icon mb-3">
-                                    <i class="bi bi-clipboard-check" style="font-size: 3rem; color: #dc2626;"></i>
-                                </div>
-                                <h5 class="card-title">Post a Task</h5>
-                                <p class="card-text">Need help? Post your task with details, location, and price. It takes less than a minute.</p>
-                            </div>
+                  <a class="navbar-brand d-flex align-items-center gap-2" href="/">
+                        <img src="/logo.png" alt="KP" style="height:28px;width:28px;border-radius:6px;object-fit:cover">
+                        <span>KaamParyo</span>
+                        <small class="text-muted fw-normal ms-1"></small>
+                  </a>
+                  <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                        <span class="navbar-toggler-icon"></span>
+                  </button>
+                  <div class="collapse navbar-collapse" id="navbarNav">
+                        <!-- Navigation for logged in users -->
+                        <ul class="navbar-nav me-auto d-none d-lg-flex" id="nav-links">
+                              <li class="nav-item">
+                                    <a class="nav-link active" href="/"><i class="bi bi-house-door"></i> Home</a>
+                              </li>
+                              <li class="nav-item">
+                                    <a class="nav-link" href="mypost.html"><i class="bi bi-clipboard-check"></i> My
+                                          Posts</a>
+                              </li>
+                              <li class="nav-item">
+                                    <a class="nav-link" href="available.html"><i class="bi bi-search"></i> Available</a>
+                              </li>
+                              <li class="nav-item">
+                                    <a class="nav-link" href="activity.html"><i class="bi bi-hourglass-split"></i>
+                                          Active</a>
+                              </li>
+                              <li class="nav-item">
+                                    <a class="nav-link" href="profile.html"><i class="bi bi-person"></i> Profile</a>
+                              </li>
+                        </ul>
+                        <ul class="navbar-nav ms-auto align-items-center">
+                              <!-- Login button (shown when not logged in) -->
+                              <li class="nav-item" id="nav-login">
+                                    <button class="btn btn-outline-primary" onclick="showLogin()">
+                                          <i class="bi bi-box-arrow-in-right"></i> Login
+                                    </button>
+                              </li>
+                              <!-- User menu (shown when logged in) -->
+                              <li class="nav-item hidden" id="nav-user">
+                                    <button id="online-toggle-btn" class="btn btn-outline-secondary me-2"
+                                          onclick="toggleOnline()">
+                                          <i class="bi bi-toggle-off"></i> Go Online
+                                    </button>
+                                    <div class="dropdown d-inline">
+                                          <button class="btn btn-light dropdown-toggle" type="button"
+                                                data-bs-toggle="dropdown">
+                                                <i class="bi bi-person-circle"></i> <span id="user-name">User</span>
+                                          </button>
+                                          <ul class="dropdown-menu dropdown-menu-end">
+                                                <li><a class="dropdown-item text-danger" href="#" onclick="logout()"><i
+                                                                  class="bi bi-box-arrow-right"></i> Logout</a></li>
+                                          </ul>
+                                    </div>
+                              </li>
+                        </ul>
+                  </div>
+            </div>
+      </nav>
+
+      <!-- Landing Page (shown when not logged in) -->
+      <div id="landing-section" class="hidden">
+            <div class="hero">
+                  <div class="container hero-content">
+                        <div class="row align-items-center">
+                              <div class="col-lg-7">
+                                    <h1>KaamParyo — Get Things Done</h1>
+                                    <p class="lead">Connect with people nearby for quick tasks. From groceries to
+                                          errands, find help in minutes or earn by helping others.</p>
+                                    <div class="hero-buttons">
+                                          <button class="btn btn-hero btn-hero-primary" onclick="showLogin()">
+                                                <i class="bi bi-rocket-takeoff"></i> Get Started
+                                          </button>
+                                          <button class="btn btn-hero btn-hero-outline" onclick="scrollToFeatures()">
+                                                <i class="bi bi-info-circle"></i> Learn More
+                                          </button>
+                                    </div>
+                              </div>
                         </div>
-                    </div>
-                    <div class="col-md-4">
-                        <div class="card h-100 border-0 shadow-sm">
-                            <div class="card-body text-center">
-                                <div class="feature-icon mb-3">
-                                    <i class="bi bi-search" style="font-size: 3rem; color: #dc2626;"></i>
-                                </div>
-                                <h5 class="card-title">Find Tasks</h5>
-                                <p class="card-text">Browse nearby tasks, accept ones you can do, and start earning money in your free time.</p>
-                            </div>
+                  </div>
+            </div>
+
+            <section id="features-section" class="py-5 bg-light">
+                  <div class="container">
+                        <h2 class="text-center mb-5">How It Works</h2>
+                        <div class="row g-4">
+                              <div class="col-md-4">
+                                    <div class="card h-100 border-0 shadow-sm">
+                                          <div class="card-body text-center">
+                                                <div class="feature-icon mb-3">
+                                                      <i class="bi bi-clipboard-check"
+                                                            style="font-size: 3rem; color: #dc2626;"></i>
+                                                </div>
+                                                <h5 class="card-title">Post a Task</h5>
+                                                <p class="card-text">Need help? Post your task with details, location,
+                                                      and price. It takes less than a minute.</p>
+                                          </div>
+                                    </div>
+                              </div>
+                              <div class="col-md-4">
+                                    <div class="card h-100 border-0 shadow-sm">
+                                          <div class="card-body text-center">
+                                                <div class="feature-icon mb-3">
+                                                      <i class="bi bi-search"
+                                                            style="font-size: 3rem; color: #dc2626;"></i>
+                                                </div>
+                                                <h5 class="card-title">Find Tasks</h5>
+                                                <p class="card-text">Browse nearby tasks, accept ones you can do, and
+                                                      start earning money in your free time.</p>
+                                          </div>
+                                    </div>
+                              </div>
+                              <div class="col-md-4">
+                                    <div class="card h-100 border-0 shadow-sm">
+                                          <div class="card-body text-center">
+                                                <div class="feature-icon mb-3">
+                                                      <i class="bi bi-cash-coin"
+                                                            style="font-size: 3rem; color: #dc2626;"></i>
+                                                </div>
+                                                <h5 class="card-title">Get Paid</h5>
+                                                <p class="card-text">Complete tasks, upload proof, and get paid
+                                                      securely. Build your reputation and earn more.</p>
+                                          </div>
+                                    </div>
+                              </div>
                         </div>
-                    </div>
-                    <div class="col-md-4">
-                        <div class="card h-100 border-0 shadow-sm">
-                            <div class="card-body text-center">
-                                <div class="feature-icon mb-3">
-                                    <i class="bi bi-cash-coin" style="font-size: 3rem; color: #dc2626;"></i>
-                                </div>
-                                <h5 class="card-title">Get Paid</h5>
-                                <p class="card-text">Complete tasks, upload proof, and get paid securely. Build your reputation and earn more.</p>
-                            </div>
+                  </div>
+            </section>
+      </div>
+
+      <!-- Dashboard (shown when logged in) -->
+      <div id="dashboard-section" class="container mt-4 hidden">
+            <div class="row mb-4">
+                  <div class="col-12">
+                        <h2>Welcome back, <span id="welcome-name">User</span>! 👋</h2>
+                        <p class="text-muted">What would you like to do today?</p>
+                  </div>
+            </div>
+
+            <!-- Quick Stats -->
+            <div class="quick-stats">
+                  <div class="row">
+                        <div class="col-md-3 col-6 mb-3 mb-md-0">
+                              <div class="stat-item">
+                                    <div class="stat-value" id="home-stat-posted">0</div>
+                                    <div class="stat-label">Tasks Posted</div>
+                              </div>
                         </div>
-                    </div>
-                </div>
-            </div>
-        </section>
-    </div>
-
-    <!-- Dashboard (shown when logged in) -->
-    <div id="dashboard-section" class="container mt-4 hidden">
-        <div class="row mb-4">
-            <div class="col-12">
-                <h2>Welcome back, <span id="welcome-name">User</span>! 👋</h2>
-                <p class="text-muted">What would you like to do today?</p>
-            </div>
-        </div>
-
-        <!-- Quick Stats -->
-        <div class="quick-stats">
-            <div class="row">
-                <div class="col-md-3 col-6 mb-3 mb-md-0">
-                    <div class="stat-item">
-                        <div class="stat-value" id="home-stat-posted">0</div>
-                        <div class="stat-label">Tasks Posted</div>
-                    </div>
-                </div>
-                <div class="col-md-3 col-6 mb-3 mb-md-0">
-                    <div class="stat-item">
-                        <div class="stat-value" id="home-stat-completed">0</div>
-                        <div class="stat-label">Completed</div>
-                    </div>
-                </div>
-                <div class="col-md-3 col-6">
-                    <div class="stat-item">
-                        <div class="stat-value" id="home-stat-earned">NPR 0</div>
-                        <div class="stat-label">Earned</div>
-                    </div>
-                </div>
-                <div class="col-md-3 col-6">
-                    <div class="stat-item">
-                        <div class="stat-value" id="home-stat-rating">0.0</div>
-                        <div class="stat-label">Rating</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Quick Actions -->
-        <div class="row g-4 mb-4">
-            <div class="col-md-6 col-lg-3">
-                <div class="card page-card" onclick="window.location.href='mypost.html'">
-                    <div class="card-body text-center">
-                        <i class="bi bi-clipboard-check page-icon"></i>
-                        <h5 class="card-title">My Posted Tasks</h5>
-                        <p class="card-text text-muted">View and manage tasks you've posted</p>
-                        <span class="badge bg-primary" id="badge-posted">0 tasks</span>
-                    </div>
-                </div>
-            </div>
-
-            <div class="col-md-6 col-lg-3">
-                <div class="card page-card" onclick="window.location.href='available.html'">
-                    <div class="card-body text-center">
-                        <i class="bi bi-search page-icon"></i>
-                        <h5 class="card-title">Available Tasks</h5>
-                        <p class="card-text text-muted">Browse and accept nearby tasks</p>
-                        <span class="badge bg-success">Earn money</span>
-                    </div>
-                </div>
-            </div>
-
-            <div class="col-md-6 col-lg-3">
-                <div class="card page-card" onclick="window.location.href='activity.html'">
-                    <div class="card-body text-center">
-                        <i class="bi bi-hourglass-split page-icon"></i>
-                        <h5 class="card-title">My Active Tasks</h5>
-                        <p class="card-text text-muted">Tasks you're currently working on</p>
-                        <span class="badge bg-warning text-dark" id="badge-active">0 active</span>
-                    </div>
-                </div>
-            </div>
-
-            <div class="col-md-6 col-lg-3">
-                <div class="card page-card" onclick="window.location.href='stats.html'">
-                    <div class="card-body text-center">
-                        <i class="bi bi-graph-up page-icon"></i>
-                        <h5 class="card-title">Statistics</h5>
-                        <p class="card-text text-muted">View your performance metrics</p>
-                        <span class="badge bg-info">Analytics</span>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Quick Post Task -->
-        <div class="card border-primary">
-            <div class="card-body text-center py-4">
-                <h5 class="card-title mb-3">Need help with something?</h5>
-                <button class="btn btn-primary btn-lg" data-bs-toggle="modal" data-bs-target="#postTaskModal">
-                    <i class="bi bi-plus-circle"></i> Post a New Task
-                </button>
-            </div>
-        </div>
-    </div>
-    </div>
-    <!-- End Dashboard Section -->
-
-    <!-- Login Modal -->
-    <div class="modal fade" id="loginModal" tabindex="-1">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title"><i class="bi bi-box-arrow-in-right"></i> Login</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <div id="phone-step">
-                        <p class="text-muted">Enter your phone number</p>
-                        <div class="mb-3">
-                            <label>Phone or Email</label>
-                            <input type="text" class="form-control" id="phone-input" placeholder="+9779801234567 or you@example.com">
+                        <div class="col-md-3 col-6 mb-3 mb-md-0">
+                              <div class="stat-item">
+                                    <div class="stat-value" id="home-stat-completed">0</div>
+                                    <div class="stat-label">Completed</div>
+                              </div>
                         </div>
-                        <button class="btn btn-primary w-100" onclick="requestOTP()">
-                            <i class="bi bi-send"></i> Send OTP
+                        <div class="col-md-3 col-6">
+                              <div class="stat-item">
+                                    <div class="stat-value" id="home-stat-earned">NPR 0</div>
+                                    <div class="stat-label">Earned</div>
+                              </div>
+                        </div>
+                        <div class="col-md-3 col-6">
+                              <div class="stat-item">
+                                    <div class="stat-value" id="home-stat-rating">0.0</div>
+                                    <div class="stat-label">Rating</div>
+                              </div>
+                        </div>
+                  </div>
+            </div>
+
+            <!-- Quick Actions -->
+            <div class="row g-4 mb-4">
+                  <div class="col-md-6 col-lg-3">
+                        <div class="card page-card" onclick="window.location.href='mypost.html'">
+                              <div class="card-body text-center">
+                                    <i class="bi bi-clipboard-check page-icon"></i>
+                                    <h5 class="card-title">My Posted Tasks</h5>
+                                    <p class="card-text text-muted">View and manage tasks you've posted</p>
+                                    <span class="badge bg-primary" id="badge-posted">0 tasks</span>
+                              </div>
+                        </div>
+                  </div>
+
+                  <div class="col-md-6 col-lg-3">
+                        <div class="card page-card" onclick="window.location.href='available.html'">
+                              <div class="card-body text-center">
+                                    <i class="bi bi-search page-icon"></i>
+                                    <h5 class="card-title">Available Tasks</h5>
+                                    <p class="card-text text-muted">Browse and accept nearby tasks</p>
+                                    <span class="badge bg-success">Earn money</span>
+                              </div>
+                        </div>
+                  </div>
+
+                  <div class="col-md-6 col-lg-3">
+                        <div class="card page-card" onclick="window.location.href='activity.html'">
+                              <div class="card-body text-center">
+                                    <i class="bi bi-hourglass-split page-icon"></i>
+                                    <h5 class="card-title">My Active Tasks</h5>
+                                    <p class="card-text text-muted">Tasks you're currently working on</p>
+                                    <span class="badge bg-warning text-dark" id="badge-active">0 active</span>
+                              </div>
+                        </div>
+                  </div>
+
+                  <div class="col-md-6 col-lg-3">
+                        <div class="card page-card" onclick="window.location.href='profile.html'">
+                              <div class="card-body text-center">
+                                    <i class="bi bi-person-circle page-icon"></i>
+                                    <h5 class="card-title">My Profile</h5>
+                                    <p class="card-text text-muted">View your profile and ratings</p>
+                                    <span class="badge bg-info" id="badge-rating">⭐ 0.0</span>
+                              </div>
+                        </div>
+                  </div>
+            </div>
+
+            <!-- Quick Post Task -->
+            <div class="card border-primary">
+                  <div class="card-body text-center py-4">
+                        <h5 class="card-title mb-3">Need help with something?</h5>
+                        <button class="btn btn-primary btn-lg" data-bs-toggle="modal" data-bs-target="#postTaskModal">
+                              <i class="bi bi-plus-circle"></i> Post a New Task
                         </button>
-                    </div>
-                    <div id="otp-step" class="hidden">
-                        <p class="text-muted">Enter 6-digit OTP</p>
-                        <div class="mb-3">
-                            <label>OTP</label>
-                            <input type="text" class="form-control" id="otp-input" placeholder="123456" maxlength="6">
-                        </div>
-                        <button class="btn btn-primary w-100" onclick="verifyOTP()">
-                            <i class="bi bi-check"></i> Verify
-                        </button>
-                    </div>
-                    <div id="profile-step" class="hidden">
-                        <p class="text-muted">Complete your profile</p>
-                        <div class="mb-3">
-                            <label>Your Name</label>
-                            <input type="text" class="form-control" id="name-input" placeholder="John Doe">
-                        </div>
-                        <button class="btn btn-primary w-100" onclick="updateProfile()">
-                            <i class="bi bi-check"></i> Continue
-                        </button>
-                    </div>
-                </div>
+                  </div>
             </div>
-        </div>
-    </div>
+      </div>
+      </div>
+      <!-- End Dashboard Section -->
 
-    <!-- Mobile Bottom Navigation -->
-    <div class="kp-bottom-nav d-md-none">
-        <button class="kp-nav-item active" onclick="window.location.href='/'">
-            <i class="bi bi-house-door"></i>
-            <span>Home</span>
-        </button>
-        <button class="kp-nav-item" onclick="window.location.href='mypost.html'">
-            <i class="bi bi-clipboard-check"></i>
-            <span>My Posts</span>
-        </button>
-        <button class="kp-nav-item" onclick="window.location.href='available.html'">
-            <i class="bi bi-search"></i>
-            <span>Available</span>
-        </button>
-        <button class="kp-nav-item" onclick="window.location.href='activity.html'">
-            <i class="bi bi-hourglass-split"></i>
-            <span>Active</span>
-        </button>
-        <button class="kp-nav-item" onclick="window.location.href='profile.html'">
-            <i class="bi bi-person-circle"></i>
-            <span>Profile</span>
-        </button>
-    </div>
+      <!-- Login Modal -->
+      <div class="modal fade" id="loginModal" tabindex="-1">
+            <div class="modal-dialog">
+                  <div class="modal-content">
+                        <div class="modal-header">
+                              <h5 class="modal-title"><i class="bi bi-box-arrow-in-right"></i> Login</h5>
+                              <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                              <div id="phone-step">
+                                    <p class="text-muted">Enter your phone number</p>
+                                    <div class="mb-3">
+                                          <label>Phone or Email</label>
+                                          <input type="text" class="form-control" id="phone-input"
+                                                placeholder="+9779801234567 or you@example.com">
+                                    </div>
+                                    <button class="btn btn-primary w-100" onclick="requestOTP()">
+                                          <i class="bi bi-send"></i> Send OTP
+                                    </button>
+                              </div>
+                              <div id="otp-step" class="hidden">
+                                    <p class="text-muted">Enter 6-digit OTP</p>
+                                    <div class="mb-3">
+                                          <label>OTP</label>
+                                          <input type="text" class="form-control" id="otp-input" placeholder="123456"
+                                                maxlength="6">
+                                    </div>
+                                    <button class="btn btn-primary w-100" onclick="verifyOTP()">
+                                          <i class="bi bi-check"></i> Verify
+                                    </button>
+                              </div>
+                              <div id="profile-step" class="hidden">
+                                    <p class="text-muted">Complete your profile</p>
+                                    <div class="mb-3">
+                                          <label>Your Name</label>
+                                          <input type="text" class="form-control" id="name-input"
+                                                placeholder="John Doe">
+                                    </div>
+                                    <button class="btn btn-primary w-100" onclick="updateProfile()">
+                                          <i class="bi bi-check"></i> Continue
+                                    </button>
+                              </div>
+                        </div>
+                  </div>
+            </div>
+      </div>
 
-    <!-- Mobile FAB -->
-    <button id="kp-fab" class="kp-fab btn btn-primary d-md-none" data-bs-toggle="modal" data-bs-target="#postTaskModal">
-        <i class="bi bi-plus-lg"></i>
-    </button>
+      <!-- Mobile Bottom Navigation -->
+      <div class="kp-bottom-nav d-md-none">
+            <button class="kp-nav-item active" onclick="window.location.href='/'">
+                  <i class="bi bi-house-door"></i>
+                  <span>Home</span>
+            </button>
+            <button class="kp-nav-item" onclick="window.location.href='mypost.html'">
+                  <i class="bi bi-clipboard-check"></i>
+                  <span>My Posts</span>
+            </button>
+            <button class="kp-nav-item" onclick="window.location.href='available.html'">
+                  <i class="bi bi-search"></i>
+                  <span>Available</span>
+            </button>
+            <button class="kp-nav-item" onclick="window.location.href='activity.html'">
+                  <i class="bi bi-hourglass-split"></i>
+                  <span>Active</span>
+            </button>
+            <button class="kp-nav-item" onclick="window.location.href='profile.html'">
+                  <i class="bi bi-person-circle"></i>
+                  <span>Profile</span>
+            </button>
+      </div>
 
-    <!-- Toast Container -->
-    <div id="toast-container" class="position-fixed top-0 end-0 p-3" style="z-index:9999"></div>
+      <!-- Mobile FAB -->
+      <button id="kp-fab" class="kp-fab btn btn-primary d-md-none" data-bs-toggle="modal"
+            data-bs-target="#postTaskModal">
+            <i class="bi bi-plus-lg"></i>
+      </button>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="https://cdn.socket.io/4.6.0/socket.io.min.js"></script>
-    <script src="https://gallimap.com/static/dist/js/gallimaps.vector.min.latest.js"></script>
-    <script src="auth-utils.js"></script>
-    <script src="load-modals.js"></script>
-    <script src="galliMapsService.js"></script>
-    <script src="app.js"></script>
-    <script>
-        // Load home page data
-        document.addEventListener('DOMContentLoaded', async () => {
-            // Check authentication
-            token = window.authUtils ? window.authUtils.initAuth() : localStorage.getItem('token');
-            
-            if (!token) {
-                // No token, show landing page
-                showLandingPage();
-                return;
+      <!-- Toast Container -->
+      <div id="toast-container" class="position-fixed top-0 end-0 p-3" style="z-index:9999"></div>
+
+      <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+      <script src="https://cdn.socket.io/4.6.0/socket.io.min.js"></script>
+      <script src="https://gallimap.com/static/dist/js/gallimaps.vector.min.latest.js"></script>
+      <script src="auth-utils.js"></script>
+      <script src="load-modals.js"></script>
+      <script src="galliMapsService.js"></script>
+      <script src="app.js"></script>
+      <script>
+            // Load home page data
+            document.addEventListener('DOMContentLoaded', async () => {
+                  // Check authentication
+                  token = window.authUtils ? window.authUtils.initAuth() : localStorage.getItem('token');
+
+                  if (!token) {
+                        // No token, show landing page
+                        showLandingPage();
+                        return;
+                  }
+
+                  // Load cached user data from cookie
+                  const cachedUser = window.authUtils ? window.authUtils.getUser() : null;
+                  if (cachedUser) {
+                        currentUser = cachedUser;
+                        isOnline = !!currentUser.isOnline;
+
+                        // Show dashboard immediately
+                        showDashboard();
+
+                        // Update UI immediately with cached data
+                        const welcomeName = document.getElementById('welcome-name');
+                        if (welcomeName) welcomeName.textContent = currentUser.name || 'User';
+
+                        const userName = document.getElementById('user-name');
+                        if (userName) userName.textContent = currentUser.name || currentUser.phone || 'User';
+
+                        // Update rating
+                        const ratingEl = document.getElementById('home-stat-rating');
+                        if (ratingEl) ratingEl.textContent = (currentUser.ratingAvg || 0).toFixed(1);
+                  } else {
+                        showDashboard();
+                  }
+
+                  // Refresh user data from server
+                  await loadUser();
+                  loadHomeStats();
+            });
+
+            function showLandingPage() {
+                  console.log('[Home] Showing landing page');
+                  document.getElementById('landing-section').classList.remove('hidden');
+                  document.getElementById('dashboard-section').classList.add('hidden');
+                  document.getElementById('nav-links').classList.add('hidden');
+                  document.getElementById('nav-login').classList.remove('hidden');
+                  document.getElementById('nav-user').classList.add('hidden');
+
+                  // Hide mobile nav
+                  const mobileNav = document.querySelector('.kp-bottom-nav');
+                  if (mobileNav) mobileNav.classList.add('hidden');
+
+                  const fab = document.getElementById('kp-fab');
+                  if (fab) fab.classList.add('hidden');
             }
-            
-            // Load cached user data from cookie
-            const cachedUser = window.authUtils ? window.authUtils.getUser() : null;
-            if (cachedUser) {
-                currentUser = cachedUser;
-                isOnline = !!currentUser.isOnline;
-                
-                // Show dashboard immediately
-                showDashboard();
-                
-                // Update UI immediately with cached data
-                const welcomeName = document.getElementById('welcome-name');
-                if (welcomeName) welcomeName.textContent = currentUser.name || 'User';
-                
-                const userName = document.getElementById('user-name');
-                if (userName) userName.textContent = currentUser.name || currentUser.phone || 'User';
-                
-                // Update rating
-                const ratingEl = document.getElementById('home-stat-rating');
-                if (ratingEl) ratingEl.textContent = (currentUser.ratingAvg || 0).toFixed(1);
-            } else {
-                showDashboard();
-            }
-            
-            // Refresh user data from server
-            await loadUser();
-            loadHomeStats();
-        });
-        
-        function showLandingPage() {
-            console.log('[Home] Showing landing page');
-            document.getElementById('landing-section').classList.remove('hidden');
-            document.getElementById('dashboard-section').classList.add('hidden');
-            document.getElementById('nav-links').classList.add('hidden');
-            document.getElementById('nav-login').classList.remove('hidden');
-            document.getElementById('nav-user').classList.add('hidden');
-            
-            // Hide mobile nav
-            const mobileNav = document.querySelector('.kp-bottom-nav');
-            if (mobileNav) mobileNav.classList.add('hidden');
-            
-            const fab = document.getElementById('kp-fab');
-            if (fab) fab.classList.add('hidden');
-        }
-        
-        function showDashboard() {
-            console.log('[Home] Showing dashboard');
-            document.getElementById('landing-section').classList.add('hidden');
-            document.getElementById('dashboard-section').classList.remove('hidden');
-            document.getElementById('nav-links').classList.remove('hidden');
-            document.getElementById('nav-login').classList.add('hidden');
-            document.getElementById('nav-user').classList.remove('hidden');
-            
-            // Show mobile nav
-            const mobileNav = document.querySelector('.kp-bottom-nav');
-            if (mobileNav) mobileNav.classList.remove('hidden');
-            
-            const fab = document.getElementById('kp-fab');
-            if (fab) fab.classList.remove('hidden');
-        }
-        
-        function scrollToFeatures() {
-            document.getElementById('features-section').scrollIntoView({ behavior: 'smooth' });
-        }
-        
-        function showLogin() {
-            const modal = new bootstrap.Modal(document.getElementById('loginModal'));
-            modal.show();
-            document.getElementById('phone-step').classList.remove('hidden');
-            document.getElementById('otp-step').classList.add('hidden');
-            document.getElementById('profile-step').classList.add('hidden');
-        }
 
-        async function loadHomeStats() {
-            if (!currentUser) return;
-            
-            // Update welcome name
-            const welcomeName = document.getElementById('welcome-name');
-            if (welcomeName) welcomeName.textContent = currentUser.name || 'User';
-            
-            try {
-                // Load metrics
-                const mres = await fetch(`${API_URL}/users/${currentUser._id}/metrics`, { headers: authHeaders() });
-                if (mres.ok) {
-                    const mdata = await mres.json();
-                    const m = mdata.metrics;
-                    
-                    // Update quick stats
-                    document.getElementById('home-stat-posted').textContent = m.postedTotal || 0;
-                    document.getElementById('home-stat-completed').textContent = m.taskerCompleted || 0;
-                    document.getElementById('home-stat-earned').textContent = NPR(m.taskerEarned || 0);
-                    document.getElementById('home-stat-rating').textContent = (currentUser.ratingAvg || 0).toFixed(1);
-                    
-                    // Update badges
-                    document.getElementById('badge-posted').textContent = `${m.postedTotal || 0} tasks`;
-                }
-                
-                // Load active tasks count
-                const ares = await fetch(`${API_URL}/users/${currentUser._id}/tasks/assigned`, { headers: authHeaders() });
-                if (ares.ok) {
-                    const adata = await ares.json();
-                    const activeTasks = (adata.tasks || []).filter(t => ['accepted', 'in_progress'].includes(t.status));
-                    document.getElementById('badge-active').textContent = `${activeTasks.length} active`;
-                }
-            } catch (e) {
-                console.error('Failed to load home stats:', e);
+            function showDashboard() {
+                  console.log('[Home] Showing dashboard');
+                  document.getElementById('landing-section').classList.add('hidden');
+                  document.getElementById('dashboard-section').classList.remove('hidden');
+                  document.getElementById('nav-links').classList.remove('hidden');
+                  document.getElementById('nav-login').classList.add('hidden');
+                  document.getElementById('nav-user').classList.remove('hidden');
+
+                  // Show mobile nav
+                  const mobileNav = document.querySelector('.kp-bottom-nav');
+                  if (mobileNav) mobileNav.classList.remove('hidden');
+
+                  const fab = document.getElementById('kp-fab');
+                  if (fab) fab.classList.remove('hidden');
             }
-        }
-    </script>
+
+            function scrollToFeatures() {
+                  document.getElementById('features-section').scrollIntoView({ behavior: 'smooth' });
+            }
+
+            function showLogin() {
+                  const modal = new bootstrap.Modal(document.getElementById('loginModal'));
+                  modal.show();
+                  document.getElementById('phone-step').classList.remove('hidden');
+                  document.getElementById('otp-step').classList.add('hidden');
+                  document.getElementById('profile-step').classList.add('hidden');
+            }
+
+            async function loadHomeStats() {
+                  if (!currentUser) return;
+
+                  // Update welcome name
+                  const welcomeName = document.getElementById('welcome-name');
+                  if (welcomeName) welcomeName.textContent = currentUser.name || 'User';
+
+                  try {
+                        // Load metrics
+                        const mres = await fetch(`${API_URL}/users/${currentUser._id}/metrics`, { headers: authHeaders() });
+                        if (mres.ok) {
+                              const mdata = await mres.json();
+                              const m = mdata.metrics;
+
+                              // Update quick stats
+                              document.getElementById('home-stat-posted').textContent = m.postedTotal || 0;
+                              document.getElementById('home-stat-completed').textContent = m.taskerCompleted || 0;
+                              document.getElementById('home-stat-earned').textContent = NPR(m.taskerEarned || 0);
+                              document.getElementById('home-stat-rating').textContent = (currentUser.ratingAvg || 0).toFixed(1);
+
+                              // Update badges
+                              document.getElementById('badge-posted').textContent = `${m.postedTotal || 0} tasks`;
+
+                              // Update profile rating badge
+                              const ratingBadge = document.getElementById('badge-rating');
+                              if (ratingBadge) {
+                                    ratingBadge.textContent = `⭐ ${(currentUser.ratingAvg || 0).toFixed(1)}`;
+                              }
+                        }
+
+                        // Load active tasks count
+                        const ares = await fetch(`${API_URL}/users/${currentUser._id}/tasks/assigned`, { headers: authHeaders() });
+                        if (ares.ok) {
+                              const adata = await ares.json();
+                              const activeTasks = (adata.tasks || []).filter(t => ['accepted', 'in_progress'].includes(t.status));
+                              document.getElementById('badge-active').textContent = `${activeTasks.length} active`;
+                        }
+                  } catch (e) {
+                        console.error('Failed to load home stats:', e);
+                  }
+            }
+      </script>
 </body>
+
 </html>

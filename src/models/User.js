@@ -12,6 +12,9 @@ const UserSchema = new Schema({
   idVerified: { type: Boolean, default: false },
   idDocument: { type: String }, // uploaded ID photo
   idVerifiedAt: { type: Date },
+  isProfessional: { type: Boolean, default: false }, // Verified professional tasker
+  professionalVerifiedAt: { type: Date },
+  professionalVerifiedBy: { type: Schema.Types.ObjectId, ref: 'User' }, // Admin who verified
   bio: { type: String, maxlength: 500 },
   languages: [{ type: String }], // e.g., ['English', 'Nepali']
   skills: [{ type: String }], // e.g., ['Plumbing', 'Delivery', 'Cleaning']

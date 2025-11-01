@@ -8,6 +8,7 @@ const userRoutes = require('./routes/users');
 const adminRoutes = require('./routes/admin');
 const categoriesRoutes = require('./routes/categories');
 const settingsRoutes = require('./routes/settings');
+const applicationRoutes = require('./routes/applications');
 
 const app = express();
 
@@ -37,6 +38,7 @@ app.use('/users', userRoutes);
 app.use('/admin', adminRoutes);
 app.use('/categories', categoriesRoutes);
 app.use('/settings', settingsRoutes);
+app.use('/applications', applicationRoutes);
 
 app.get('*', (req, res, next) => {
   const isApi = req.path.startsWith('/auth') || req.path.startsWith('/tasks') || req.path.startsWith('/users') || req.path.startsWith('/admin') || req.path.startsWith('/uploads') || req.path.startsWith('/health') || req.path.startsWith('/api') || req.path.startsWith('/categories') || req.path.startsWith('/settings');

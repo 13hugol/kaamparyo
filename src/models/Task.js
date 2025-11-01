@@ -15,6 +15,8 @@ const TaskSchema = new Schema({
   biddingEnabled: { type: Boolean, default: false }, // allow counter-offers
   quickAccept: { type: Boolean, default: true }, // Insta-Task: first to accept wins (no bidding)
   allowedTier: { type: String, enum: ['all', 'pro'], default: 'all' }, // Filter by tasker tier
+  professionalOnly: { type: Boolean, default: false }, // Only verified professionals can apply
+  professionalBonus: { type: Number, default: 0 }, // Extra amount for professional mode (20% = 0.2)
   
   // Schedule for Later
   scheduledFor: { type: Date }, // Future date/time for task execution
@@ -57,6 +59,7 @@ const TaskSchema = new Schema({
   },
   radiusKm: { type: Number, default: 3 },
   assignedTaskerId: { type: Schema.Types.ObjectId, ref: 'User' },
+  applicationCount: { type: Number, default: 0 }, // Track number of applications
   acceptedAt: Date,
   startedAt: Date,
   completedAt: Date,

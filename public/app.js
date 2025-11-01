@@ -160,6 +160,12 @@ function attachModalHandlers() {
     postTaskModal.addEventListener('shown.bs.modal', () => {
       console.log('[Map] Post task modal shown, initializing map...');
       setTimeout(() => initMap(), 200);
+      
+      // Add price input listener for professional mode
+      const priceInput = document.getElementById('task-price');
+      if (priceInput) {
+        priceInput.addEventListener('input', updateProfessionalPrice);
+      }
     });
   } else {
     console.warn('[Map] postTaskModal not found');
@@ -347,6 +353,21 @@ function connectSocket() {
     loadMyTasks(); loadMyAcceptedTasks();
     showToast(p?.reposted ? 'Task refunded and reposted' : 'Task refunded', p?.reposted ? 'info' : 'warning');
     playBeep();
+  });
+  
+  // Application system events
+  socket.on('new_application', (data) => {
+    loadMyTasks(); // Reload to update application count
+    showToast(`New application for "${data.taskTitle}"`, 'info');
+    playBeep();
+  });
+  socket.on('application_approved', (data) => {
+    loadMyAcceptedTasks();
+    showToast(`Your application for "${data.taskTitle}" was approved!`, 'success');
+    playBeep();
+  });
+  socket.on('application_rejected', (data) => {
+    showToast(`Your application for "${data.taskTitle}" was not selected`, 'warning');
   });
 }
 
@@ -1175,16 +1196,23 @@ function attachTaskFormHandler() {
     console.log('[Form] Submitting task...');
     
     const sel = document.getElementById('task-category').value;
+    const basePrice = parseInt(document.getElementById('task-price').value, 10);
+    const isProfessionalMode = document.getElementById('task-professional-mode').checked;
+    const professionalBonus = isProfessionalMode ? 0.2 : 0; // 20% bonus
+    const totalPrice = Math.round(basePrice * (1 + professionalBonus));
+    
     const taskData = {
       title: document.getElementById('task-title').value,
       description: document.getElementById('task-description').value,
       categoryId: sel,
       categoryName: sel === 'custom' ? document.getElementById('task-category-custom').value : undefined,
-      price: parseInt(document.getElementById('task-price').value, 10) * 100,
+      price: totalPrice * 100, // Convert to paisa
       durationMin: parseInt(document.getElementById('task-duration').value, 10) || 0,
       lat: selectedLocation.lat,
       lng: selectedLocation.lng,
-      radiusKm: parseInt(document.getElementById('task-radius').value, 10)
+      radiusKm: parseInt(document.getElementById('task-radius').value, 10),
+      professionalOnly: isProfessionalMode,
+      professionalBonus: professionalBonus
     };
     
     console.log('[Form] Task data:', taskData);
@@ -1315,13 +1343,17 @@ function renderMyTasks(tasks) {
   container.innerHTML = tasks.map(task => `
     <div class="task-card">
       <div class="d-flex justify-content-between align-items-start">
-        <div>
+        <div class="flex-grow-1">
           <div class="task-title">${escapeHtml(task.title)}</div>
-          <div class="task-meta"><span class="badge badge-${task.status}">${task.status}</span></div>
+          <div class="task-meta">
+            <span class="badge badge-${task.status}">${task.status}</span>
+            ${task.categoryName ? `<span class="badge bg-secondary ms-1">${escapeHtml(task.categoryName)}</span>` : ''}
+          </div>
         </div>
         <div class="task-price">${NPR(task.price)}</div>
       </div>
       <div class="mt-2 d-flex gap-2 flex-wrap">
+        ${task.status === 'posted' ? `<button class=\"btn btn-primary btn-sm\" onclick=\"viewApplicants('${task._id}')\"><i class=\"bi bi-people\"></i> Applicants ${task.applicationCount > 0 ? `<span class=\"badge bg-light text-dark\">${task.applicationCount}</span>` : ''}</button>` : ''}
         ${task.status === 'posted' ? `<button class=\"btn btn-outline-secondary btn-sm\" onclick=\"openEditTask('${task._id}')\">Edit</button>` : ''}
         ${task.status === 'posted' ? `<button class=\"btn btn-outline-danger btn-sm\" onclick=\"deleteTask('${task._id}')\">Delete</button>` : ''}
         ${['accepted', 'in_progress'].includes(task.status) ? `<button class="btn btn-danger btn-sm" onclick="openLiveTracking('${task._id}')"><i class="bi bi-broadcast"></i> Track Live</button>` : ''}
@@ -1350,16 +1382,29 @@ function renderNearbyTasks(tasks) {
   const container = document.getElementById('nearby-tasks-list'); if (!container) return;
   if (!tasks.length) return container.innerHTML = `<div class="empty-state"><div class="empty-state-icon"><i class="bi bi-geo"></i></div><div class="empty-state-title">No tasks nearby</div><div class="empty-state-text">Try increasing your radius or come back later.</div></div>`;
   container.innerHTML = tasks.map(task => `
-    <div class="task-card">
-      <div class="d-flex justify-content-between align-items-start">
-        <div>
+    <div class="task-card" style="cursor: pointer;" onclick="viewTaskDetails('${task._id}')">
+      <div class="d-flex justify-content-between align-items-start mb-2">
+        <div class="flex-grow-1">
           <div class="task-title">${escapeHtml(task.title)}</div>
           <div class="task-meta">${escapeHtml(task.description || 'No description')}</div>
+          <div class="mt-1">
+            ${task.categoryName ? `<span class="badge bg-secondary">${escapeHtml(task.categoryName)}</span>` : ''}
+            ${task.professionalOnly ? `<span class="badge bg-warning text-dark"><i class="bi bi-award-fill"></i> Professional Only</span>` : ''}
+          </div>
         </div>
-<div class=\"task-price\">${NPR(task.price)}</div>
+        <div class="task-price">${NPR(task.price)}</div>
+      </div>
+      <div class="d-flex justify-content-between align-items-center text-muted small mb-2">
+        <span><i class="bi bi-clock"></i> ${task.durationMin || 0} min</span>
+        <span><i class="bi bi-geo-alt"></i> ${(task.radiusKm || 3)} km radius</span>
       </div>
       <div class="mt-2 d-flex gap-2">
-        <button class="btn btn-primary btn-sm" onclick="acceptTask('${task._id}')">Accept</button>
+        <button class="btn btn-outline-primary btn-sm" onclick="event.stopPropagation(); viewTaskDetails('${task._id}')">
+          <i class="bi bi-eye"></i> View Details
+        </button>
+        <button class="btn btn-primary btn-sm" onclick="event.stopPropagation(); openApplyModal('${task._id}')">
+          <i class="bi bi-send-check"></i> Apply
+        </button>
       </div>
     </div>
   `).join('');
@@ -1376,9 +1421,12 @@ async function loadMyAcceptedTasks() {
     container.innerHTML = data.tasks.map(task => `
       <div class="task-card">
         <div class="d-flex justify-content-between align-items-start">
-          <div>
+          <div class="flex-grow-1">
             <div class="task-title">${escapeHtml(task.title)}</div>
-            <div class="task-meta"><span class="badge badge-${task.status}">${task.status}</span></div>
+            <div class="task-meta">
+              <span class="badge badge-${task.status}">${task.status}</span>
+              ${task.categoryName ? `<span class="badge bg-secondary ms-1">${escapeHtml(task.categoryName)}</span>` : ''}
+            </div>
           </div>
           <div class="task-price">${NPR(task.price)}</div>
         </div>
@@ -1582,6 +1630,411 @@ window.toggleOnline = toggleOnline;
 window.getMyLocation = getMyLocation;
 window.openChat = openChat;
 window.sendChatMessage = sendChatMessage;
+// Application System
+let currentApplyTaskId = null;
+
+async function openApplyModal(taskId) {
+  try {
+    currentApplyTaskId = taskId;
+    
+    // Fetch task details
+    const res = await fetch(`${API_URL}/tasks/${taskId}`, { headers: authHeaders() });
+    if (!res.ok) {
+      showToast('Failed to load task details', 'danger');
+      return;
+    }
+    
+    const data = await res.json();
+    const task = data.task;
+    
+    // Populate task info
+    const taskInfo = document.getElementById('apply-task-info');
+    if (taskInfo) {
+      taskInfo.innerHTML = `
+        <div class="card bg-light">
+          <div class="card-body">
+            <h6 class="card-title">${task.title}</h6>
+            <p class="text-muted small mb-2">${task.description || 'No description'}</p>
+            <div class="d-flex justify-content-between">
+              <span class="text-muted">Posted Price:</span>
+              <strong class="text-success">${NPR(task.price)}</strong>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+    
+    // Set default price
+    document.getElementById('apply-proposed-price').value = task.price;
+    document.getElementById('apply-message').value = '';
+    
+    // Character counter
+    const messageInput = document.getElementById('apply-message');
+    const counter = document.getElementById('apply-message-count');
+    messageInput.addEventListener('input', () => {
+      counter.textContent = messageInput.value.length;
+    });
+    
+    // Open modal
+    const modal = new bootstrap.Modal(document.getElementById('applyTaskModal'));
+    modal.show();
+    
+  } catch (error) {
+    console.error('Error opening apply modal:', error);
+    showToast('Failed to open application form', 'danger');
+  }
+}
+
+async function submitApplication() {
+  if (!currentApplyTaskId) return;
+  
+  const proposedPrice = parseInt(document.getElementById('apply-proposed-price').value);
+  const message = document.getElementById('apply-message').value.trim();
+  
+  if (!proposedPrice || proposedPrice <= 0) {
+    showToast('Please enter a valid price', 'warning');
+    return;
+  }
+  
+  try {
+    const res = await fetch(`${API_URL}/applications`, {
+      method: 'POST',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({
+        taskId: currentApplyTaskId,
+        proposedPrice,
+        message
+      })
+    });
+    
+    if (res.ok) {
+      showToast('Application submitted successfully!', 'success');
+      bootstrap.Modal.getInstance(document.getElementById('applyTaskModal')).hide();
+      currentApplyTaskId = null;
+      
+      // Reload tasks
+      if (typeof loadAvailableTasks === 'function') loadAvailableTasks();
+    } else {
+      const data = await res.json();
+      showToast(data.error || 'Failed to submit application', 'danger');
+    }
+  } catch (error) {
+    console.error('Error submitting application:', error);
+    showToast('Failed to submit application', 'danger');
+  }
+}
+
+async function viewApplicants(taskId) {
+  try {
+    const res = await fetch(`${API_URL}/applications/task/${taskId}`, { headers: authHeaders() });
+    
+    if (!res.ok) {
+      showToast('Failed to load applicants', 'danger');
+      return;
+    }
+    
+    const data = await res.json();
+    const applications = data.applications || [];
+    
+    const applicantsList = document.getElementById('applicants-list');
+    
+    if (applications.length === 0) {
+      applicantsList.innerHTML = '<p class="text-center text-muted">No applicants yet</p>';
+    } else {
+      applicantsList.innerHTML = applications.map(app => {
+        const applicant = app.applicant;
+        const isPending = app.status === 'pending';
+        const isApproved = app.status === 'approved';
+        
+        return `
+          <div class="card mb-3 ${isApproved ? 'border-success' : ''}">
+            <div class="card-body">
+              <div class="d-flex justify-content-between align-items-start mb-3">
+                <div class="d-flex align-items-center gap-3">
+                  <div class="profile-avatar" style="width: 50px; height: 50px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 20px;">
+                    ${(applicant.name || applicant.phone || 'T')[0].toUpperCase()}
+                  </div>
+                  <div>
+                    <h6 class="mb-1">
+                      ${applicant.name || 'Tasker'}
+                      ${applicant.isProfessional ? '<i class="bi bi-patch-check-fill text-primary" title="Verified Professional"></i>' : ''}
+                    </h6>
+                    <div class="text-muted small">${applicant.phone || ''}</div>
+                  </div>
+                </div>
+                ${isApproved ? '<span class="badge bg-success">Approved</span>' : ''}
+                ${app.status === 'rejected' ? '<span class="badge bg-danger">Rejected</span>' : ''}
+              </div>
+              
+              <div class="row g-2 mb-3">
+                <div class="col-6">
+                  <div class="small text-muted">Rating as Tasker</div>
+                  <div class="fw-semibold">
+                    <i class="bi bi-star-fill text-warning"></i> ${(applicant.ratingAvgAsTasker || 0).toFixed(1)}
+                    <span class="text-muted small">(${applicant.ratingCountAsTasker || 0})</span>
+                  </div>
+                </div>
+                <div class="col-6">
+                  <div class="small text-muted">Tasks Completed</div>
+                  <div class="fw-semibold">${app.applicant.completedTasks || 0}</div>
+                </div>
+              </div>
+              
+              ${applicant.skills && applicant.skills.length > 0 ? `
+                <div class="mb-3">
+                  <div class="small text-muted mb-1">Skills</div>
+                  <div class="d-flex flex-wrap gap-1">
+                    ${applicant.skills.map(skill => `<span class="badge bg-info">${skill}</span>`).join('')}
+                  </div>
+                </div>
+              ` : ''}
+              
+              <div class="mb-3">
+                <div class="small text-muted">Proposed Price</div>
+                <div class="fw-semibold text-success">${NPR(app.proposedPrice)}</div>
+              </div>
+              
+              ${app.message ? `
+                <div class="mb-3">
+                  <div class="small text-muted">Message</div>
+                  <div class="small">"${app.message}"</div>
+                </div>
+              ` : ''}
+              
+              ${isPending ? `
+                <div class="d-flex gap-2">
+                  <button class="btn btn-success btn-sm flex-fill" onclick="approveApplication('${app._id}', '${taskId}')">
+                    <i class="bi bi-check-circle"></i> Approve
+                  </button>
+                  <button class="btn btn-outline-danger btn-sm" onclick="rejectApplication('${app._id}', '${taskId}')">
+                    <i class="bi bi-x-circle"></i> Reject
+                  </button>
+                </div>
+              ` : ''}
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+    
+    // Open modal
+    const modal = new bootstrap.Modal(document.getElementById('viewApplicantsModal'));
+    modal.show();
+    
+  } catch (error) {
+    console.error('Error loading applicants:', error);
+    showToast('Failed to load applicants', 'danger');
+  }
+}
+
+async function approveApplication(applicationId, taskId) {
+  if (!confirm('Approve this applicant? This will reject all other applications.')) return;
+  
+  try {
+    const res = await fetch(`${API_URL}/applications/${applicationId}/approve`, {
+      method: 'POST',
+      headers: authHeaders()
+    });
+    
+    if (res.ok) {
+      showToast('Application approved!', 'success');
+      bootstrap.Modal.getInstance(document.getElementById('viewApplicantsModal')).hide();
+      
+      // Reload tasks
+      if (typeof loadMyTasks === 'function') loadMyTasks();
+    } else {
+      const data = await res.json();
+      showToast(data.error || 'Failed to approve', 'danger');
+    }
+  } catch (error) {
+    console.error('Error approving application:', error);
+    showToast('Failed to approve application', 'danger');
+  }
+}
+
+async function rejectApplication(applicationId, taskId) {
+  if (!confirm('Reject this application?')) return;
+  
+  try {
+    const res = await fetch(`${API_URL}/applications/${applicationId}/reject`, {
+      method: 'POST',
+      headers: authHeaders()
+    });
+    
+    if (res.ok) {
+      showToast('Application rejected', 'info');
+      // Reload applicants
+      viewApplicants(taskId);
+    } else {
+      const data = await res.json();
+      showToast(data.error || 'Failed to reject', 'danger');
+    }
+  } catch (error) {
+    console.error('Error rejecting application:', error);
+    showToast('Failed to reject application', 'danger');
+  }
+}
+
+async function viewTaskDetails(taskId) {
+  try {
+    const res = await fetch(`${API_URL}/tasks/${taskId}`, { headers: authHeaders() });
+    
+    if (!res.ok) {
+      showToast('Failed to load task details', 'danger');
+      return;
+    }
+    
+    const data = await res.json();
+    const task = data.task;
+    
+    const content = document.getElementById('task-details-content');
+    const footer = document.getElementById('task-details-footer');
+    
+    // Define these outside the if blocks so they're accessible in both
+    const requester = task.requesterId;
+    const isMyTask = currentUser && task.requesterId._id === currentUser._id;
+    const isAssigned = currentUser && task.assignedTaskerId && task.assignedTaskerId._id === currentUser._id;
+    
+    if (content) {
+      
+      content.innerHTML = `
+        <div class="mb-4">
+          <h4 class="mb-2">${escapeHtml(task.title)}</h4>
+          ${task.categoryName ? `<div class="mb-2"><span class="badge bg-secondary">${escapeHtml(task.categoryName)}</span></div>` : ''}
+          <p class="text-muted">${escapeHtml(task.description || 'No description provided')}</p>
+        </div>
+        
+        <div class="row g-3 mb-4">
+          <div class="col-md-6">
+            <div class="card bg-light">
+              <div class="card-body">
+                <h6 class="card-title text-muted mb-3">Task Details</h6>
+                <div class="d-flex justify-content-between mb-2">
+                  <span class="text-muted">Price:</span>
+                  <strong class="text-success">${NPR(task.price)}</strong>
+                </div>
+                <div class="d-flex justify-content-between mb-2">
+                  <span class="text-muted">Duration:</span>
+                  <strong>${task.durationMin || 0} minutes</strong>
+                </div>
+                <div class="d-flex justify-content-between mb-2">
+                  <span class="text-muted">Status:</span>
+                  <span class="badge badge-${task.status}">${task.status}</span>
+                </div>
+                ${task.applicationCount > 0 ? `
+                  <div class="d-flex justify-content-between">
+                    <span class="text-muted">Applicants:</span>
+                    <strong>${task.applicationCount}</strong>
+                  </div>
+                ` : ''}
+              </div>
+            </div>
+          </div>
+          
+          <div class="col-md-6">
+            <div class="card bg-light">
+              <div class="card-body">
+                <h6 class="card-title text-muted mb-3">Posted By</h6>
+                <div class="d-flex align-items-center gap-2 mb-2">
+                  <div class="profile-avatar" style="width: 40px; height: 40px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold;">
+                    ${(requester.name || requester.phone || 'U')[0].toUpperCase()}
+                  </div>
+                  <div>
+                    <div class="fw-semibold">${requester.name || 'User'}</div>
+                    <div class="text-muted small">${requester.phone || ''}</div>
+                  </div>
+                </div>
+                <div class="d-flex justify-content-between">
+                  <span class="text-muted">Rating as Customer:</span>
+                  <span class="badge bg-primary">
+                    <i class="bi bi-star-fill"></i> ${(requester.ratingAvgAsCustomer || 0).toFixed(1)}
+                    <span class="small">(${requester.ratingCountAsCustomer || 0})</span>
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="card bg-light mb-3">
+          <div class="card-body">
+            <h6 class="card-title text-muted mb-2">Location</h6>
+            <div class="d-flex justify-content-between">
+              <span class="text-muted">
+                <i class="bi bi-geo-alt"></i> 
+                ${task.location.coordinates[1].toFixed(4)}, ${task.location.coordinates[0].toFixed(4)}
+              </span>
+              <span class="text-muted">Radius: ${task.radiusKm || 3} km</span>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+    
+    if (footer) {
+      if (isMyTask) {
+        footer.innerHTML = `
+          <button class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+          <button class="btn btn-primary" onclick="viewApplicants('${task._id}')">
+            <i class="bi bi-people"></i> View Applicants ${task.applicationCount > 0 ? `(${task.applicationCount})` : ''}
+          </button>
+        `;
+      } else if (task.status === 'posted' && !isAssigned) {
+        footer.innerHTML = `
+          <button class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+          <button class="btn btn-primary" onclick="openApplyModal('${task._id}')">
+            <i class="bi bi-send-check"></i> Apply for this Task
+          </button>
+        `;
+      } else {
+        footer.innerHTML = `
+          <button class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+        `;
+      }
+    }
+    
+    // Open modal
+    const modal = new bootstrap.Modal(document.getElementById('taskDetailsModal'));
+    modal.show();
+    
+  } catch (error) {
+    console.error('Error loading task details:', error);
+    showToast('Failed to load task details', 'danger');
+  }
+}
+
+// Professional Mode Price Calculator
+function updateProfessionalPrice() {
+  const priceInput = document.getElementById('task-price');
+  const professionalMode = document.getElementById('task-professional-mode');
+  const preview = document.getElementById('professional-price-preview');
+  
+  if (!priceInput || !professionalMode || !preview) return;
+  
+  const basePrice = parseInt(priceInput.value) || 0;
+  const isEnabled = professionalMode.checked;
+  
+  if (isEnabled && basePrice > 0) {
+    const bonus = Math.round(basePrice * 0.2);
+    const total = basePrice + bonus;
+    
+    document.getElementById('base-price-display').textContent = NPR(basePrice * 100);
+    document.getElementById('bonus-price-display').textContent = NPR(bonus * 100);
+    document.getElementById('total-price-display').textContent = NPR(total * 100);
+    
+    preview.classList.remove('hidden');
+  } else {
+    preview.classList.add('hidden');
+  }
+}
+
+window.updateProfessionalPrice = updateProfessionalPrice;
+window.viewTaskDetails = viewTaskDetails;
+window.openApplyModal = openApplyModal;
+window.submitApplication = submitApplication;
+window.viewApplicants = viewApplicants;
+window.approveApplication = approveApplication;
+window.rejectApplication = rejectApplication;
 window.showUploadProof = showUploadProof;
 window.approveTask = approveTask;
 window.acceptTask = acceptTask;

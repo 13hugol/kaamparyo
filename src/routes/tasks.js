@@ -16,13 +16,17 @@ router.post('/', authMiddleware, async (req, res) => {
   const { title, description, categoryId, categoryName, price, lat, lng, radiusKm, durationMin, requiredSkills, biddingEnabled, quickAccept, allowedTier, scheduledFor, bidWindowHours, isRecurring, recurringConfig } = req.body;
 
   let category = null;
-  if (categoryId !== 'custom') {
+  let finalCategoryName = categoryName;
+  
+  if (categoryId && categoryId !== 'custom') {
     category = await Category.findById(categoryId);
-    if (!category) return res.status(400).json({ error: 'Invalid category' });
-    if (price < category.minPrice || price > category.maxPrice) {
-      return res.status(400).json({ error: `Price must be between ${category.minPrice} and ${category.maxPrice}` });
+    if (category) {
+      finalCategoryName = category.name;
     }
-  } else {
+    // Don't fail if category not found, just use the provided categoryName
+  }
+  
+  if (categoryId === 'custom') {
     if (!categoryName || !String(categoryName).trim()) {
       return res.status(400).json({ error: 'Custom category name required' });
     }
@@ -72,8 +76,8 @@ router.post('/', authMiddleware, async (req, res) => {
     requesterId: user._id,
     title,
     description,
-    categoryId,
-    categoryName: categoryId === 'custom' ? categoryName : undefined,
+    categoryId: categoryId || 'custom',
+    categoryName: finalCategoryName,
     price,
     durationMin: Number(durationMin) || 0,
     requiredSkills: Array.isArray(requiredSkills) ? requiredSkills : [],
@@ -146,7 +150,7 @@ function calculateNextOccurrence(frequency, dayOfWeek, timeOfDay) {
 router.get('/nearby', authMiddleware, async (req, res) => {
   const user = getUser(req);
   const User = require('../models/User');
-  const currentUser = await User.findById(user._id).select('tier');
+  const currentUser = await User.findById(user._id).select('tier isProfessional');
   
   if (!currentUser) {
     return res.status(404).json({ error: 'User not found' });
@@ -160,10 +164,16 @@ router.get('/nearby', authMiddleware, async (req, res) => {
     ? { allowedTier: { $in: ['all', 'pro'] } }
     : { allowedTier: 'all' };
   
+  // Professional filter: only show professional-only tasks to verified professionals
+  const professionalFilter = currentUser.isProfessional
+    ? {} // Professionals can see all tasks
+    : { professionalOnly: { $ne: true } }; // Non-professionals can't see professional-only tasks
+  
   const tasks = await Task.find({
     status: 'posted',
     requesterId: { $ne: user._id },
     ...tierFilter,
+    ...professionalFilter,
     location: {
       $nearSphere: {
         $geometry: { type: 'Point', coordinates: [Number(lng), Number(lat)] },
@@ -655,17 +665,13 @@ router.post('/:id/expense/:expenseId/review', authMiddleware, async (req, res) =
 router.get('/:id', authMiddleware, async (req, res) => {
   const user = getUser(req);
   const task = await Task.findById(req.params.id)
-    .populate('requesterId', 'name phone email profilePhoto ratingAvg ratingCount phoneVerified emailVerified')
-    .populate('assignedTaskerId', 'name phone email profilePhoto ratingAvg ratingCount phoneVerified emailVerified');
+    .populate('requesterId', 'name phone email profilePhoto ratingAvg ratingCount ratingAvgAsCustomer ratingCountAsCustomer phoneVerified emailVerified')
+    .populate('assignedTaskerId', 'name phone email profilePhoto ratingAvg ratingCount ratingAvgAsTasker ratingCountAsTasker phoneVerified emailVerified');
   
   if (!task) return res.status(404).json({ error: 'Task not found' });
   
-  const isParty = task.requesterId._id.toString() === user._id.toString() || 
-                  (task.assignedTaskerId && task.assignedTaskerId._id.toString() === user._id.toString());
-  
-  if (!isParty && user.role !== 'admin') {
-    return res.status(403).json({ error: 'Not authorized to view this task' });
-  }
+  // Allow anyone to view task details (InDrive-style)
+  // This lets potential applicants see full task info before applying
   
   res.json({ ok: true, task });
 });
