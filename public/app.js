@@ -1795,6 +1795,17 @@ async function viewApplicants(taskId) {
                 </div>
               ` : ''}
               
+              ${applicant.certificates && applicant.certificates.length > 0 ? `
+                <div class="mb-3">
+                  <div class="small text-muted mb-1">Certificates</div>
+                  ${applicant.certificates.map(cert => `
+                    <div class="small">
+                      <i class="bi bi-patch-check text-success"></i> ${cert.name} - ${cert.organization}
+                    </div>
+                  `).join('')}
+                </div>
+              ` : ''}
+              
               <div class="mb-3">
                 <div class="small text-muted">Proposed Price</div>
                 <div class="fw-semibold text-success">${NPR(app.proposedPrice)}</div>

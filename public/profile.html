@@ -116,8 +116,11 @@
                             </div>
                         </div>
                         
-                        <button class="btn btn-outline-primary btn-sm w-100" onclick="showWallet()">
-                            <i class="bi bi-wallet2"></i> View Wallet
+                        <button class="btn btn-outline-primary btn-sm w-100" id="professional-setup-btn" onclick="openProfessionalSetup()">
+                            <i class="bi bi-award"></i> Become Professional
+                        </button>
+                        <button class="btn btn-success btn-sm w-100 hidden" id="manage-qualifications-btn" onclick="openQualifications()">
+                            <i class="bi bi-file-earmark-text"></i> Manage Qualifications
                         </button>
                     </div>
                 </div>
@@ -517,7 +520,250 @@
             await loadProfileStats();
             await loadRecentReviews();
             loadKYCData();
+            updateProfessionalButton();
         }
+        
+        function updateProfessionalButton() {
+            const isProfessional = currentUser && currentUser.isProfessional;
+            const setupBtn = document.getElementById('professional-setup-btn');
+            const manageBtn = document.getElementById('manage-qualifications-btn');
+            
+            if (isProfessional) {
+                if (setupBtn) setupBtn.classList.add('hidden');
+                if (manageBtn) manageBtn.classList.remove('hidden');
+            } else {
+                if (setupBtn) setupBtn.classList.remove('hidden');
+                if (manageBtn) manageBtn.classList.add('hidden');
+            }
+        }
+        
+        // Professional Setup
+        const commonSkills = [
+            'Plumbing', 'Electrical', 'Carpentry', 'Painting', 'Cleaning',
+            'Delivery', 'Moving', 'Gardening', 'Cooking', 'Tutoring',
+            'IT Support', 'Photography', 'Videography', 'Graphic Design', 'Writing'
+        ];
+        
+        let selectedSkills = [];
+        let certificates = [];
+        
+        function openProfessionalSetup() {
+            // Load current skills if any
+            selectedSkills = currentUser && currentUser.skills ? [...currentUser.skills] : [];
+            certificates = [];
+            
+            // Update skills display
+            updateSkillsDisplay();
+            
+            // Clear certificate form
+            document.getElementById('cert-name').value = '';
+            document.getElementById('cert-org').value = '';
+            document.getElementById('cert-date').value = '';
+            document.getElementById('cert-id').value = '';
+            document.getElementById('certificates-list').innerHTML = '';
+            
+            const modal = new bootstrap.Modal(document.getElementById('professionalSetupModal'));
+            modal.show();
+        }
+        
+        function toggleSkill(skill) {
+            const index = selectedSkills.indexOf(skill);
+            if (index > -1) {
+                selectedSkills.splice(index, 1);
+            } else {
+                selectedSkills.push(skill);
+            }
+            updateSkillsDisplay(); // Just update display, don't reopen modal
+        }
+        
+        function updateSkillsDisplay() {
+            const skillsContainer = document.getElementById('skills-selection');
+            if (!skillsContainer) return;
+            
+            skillsContainer.innerHTML = commonSkills.map(skill => {
+                const isSelected = selectedSkills.includes(skill);
+                return `
+                    <button type="button" class="btn btn-sm ${isSelected ? 'btn-primary' : 'btn-outline-primary'}" 
+                            onclick="toggleSkill('${skill}'); event.stopPropagation();">
+                        ${skill} ${isSelected ? '<i class="bi bi-check"></i>' : ''}
+                    </button>
+                `;
+            }).join('');
+            
+            // Add custom skills
+            selectedSkills.forEach(skill => {
+                if (!commonSkills.includes(skill)) {
+                    skillsContainer.innerHTML += `
+                        <button type="button" class="btn btn-sm btn-primary" onclick="toggleSkill('${skill}'); event.stopPropagation();">
+                            ${skill} <i class="bi bi-check"></i>
+                        </button>
+                    `;
+                }
+            });
+        }
+        
+        function addCustomSkill() {
+            const input = document.getElementById('custom-skill-input');
+            const skill = input.value.trim();
+            
+            if (!skill) {
+                showToast('Please enter a skill name', 'warning');
+                return;
+            }
+            
+            if (selectedSkills.includes(skill)) {
+                showToast('Skill already added', 'warning');
+                return;
+            }
+            
+            selectedSkills.push(skill);
+            input.value = '';
+            updateSkillsDisplay(); // Just update display
+            showToast('Skill added', 'success');
+        }
+        
+        function addCertificate() {
+            const name = document.getElementById('cert-name').value.trim();
+            const org = document.getElementById('cert-org').value.trim();
+            const date = document.getElementById('cert-date').value;
+            const certId = document.getElementById('cert-id').value.trim();
+            
+            if (!name || !org) {
+                showToast('Please fill certificate name and organization', 'warning');
+                return;
+            }
+            
+            const certificate = { name, organization: org, issueDate: date, certificateId: certId };
+            certificates.push(certificate);
+            
+            // Clear form
+            document.getElementById('cert-name').value = '';
+            document.getElementById('cert-org').value = '';
+            document.getElementById('cert-date').value = '';
+            document.getElementById('cert-id').value = '';
+            
+            // Display added certificate
+            const certList = document.getElementById('certificates-list');
+            certList.innerHTML += `
+                <div class="card mb-2">
+                    <div class="card-body py-2">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <strong>${name}</strong>
+                                <div class="small text-muted">${org} ${date ? `• ${new Date(date).toLocaleDateString()}` : ''}</div>
+                            </div>
+                            <button class="btn btn-sm btn-outline-danger" onclick="removeCertificate(${certificates.length - 1})">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            showToast('Certificate added', 'success');
+        }
+        
+        function removeCertificate(index) {
+            certificates.splice(index, 1);
+            // Refresh display
+            const certList = document.getElementById('certificates-list');
+            certList.innerHTML = certificates.map((cert, i) => `
+                <div class="card mb-2">
+                    <div class="card-body py-2">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <strong>${cert.name}</strong>
+                                <div class="small text-muted">${cert.organization} ${cert.issueDate ? `• ${new Date(cert.issueDate).toLocaleDateString()}` : ''}</div>
+                            </div>
+                            <button class="btn btn-sm btn-outline-danger" onclick="removeCertificate(${i})">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+        
+        async function submitProfessionalSetup() {
+            if (selectedSkills.length === 0) {
+                showToast('Please select at least one skill', 'warning');
+                return;
+            }
+            
+            try {
+                const res = await fetch(`${API_URL}/auth/professional-setup`, {
+                    method: 'POST',
+                    headers: authHeaders({ 'Content-Type': 'application/json' }),
+                    body: JSON.stringify({
+                        skills: selectedSkills,
+                        certificates: certificates
+                    })
+                });
+                
+                if (res.ok) {
+                    showToast('Professional account activated! You now have access to premium tasks.', 'success');
+                    bootstrap.Modal.getInstance(document.getElementById('professionalSetupModal')).hide();
+                    await loadUser();
+                    loadProfileData();
+                } else {
+                    const data = await res.json();
+                    showToast(data.error || 'Failed to setup professional account', 'danger');
+                }
+            } catch (e) {
+                showToast('Error: ' + e.message, 'danger');
+            }
+        }
+        
+        function openQualifications() {
+            if (!currentUser) return;
+            
+            // Display current skills
+            const skillsDisplay = document.getElementById('current-skills-display');
+            if (skillsDisplay) {
+                const skills = currentUser.skills || [];
+                if (skills.length > 0) {
+                    skillsDisplay.innerHTML = `
+                        <div class="d-flex flex-wrap gap-2">
+                            ${skills.map(skill => `<span class="badge bg-primary">${skill}</span>`).join('')}
+                        </div>
+                    `;
+                } else {
+                    skillsDisplay.innerHTML = '<p class="text-muted">No skills added yet</p>';
+                }
+            }
+            
+            // Display current certificates
+            const certsDisplay = document.getElementById('current-certificates-display');
+            if (certsDisplay) {
+                const certs = currentUser.certificates || [];
+                if (certs.length > 0) {
+                    certsDisplay.innerHTML = certs.map(cert => `
+                        <div class="card mb-2">
+                            <div class="card-body">
+                                <h6 class="mb-1">${cert.name}</h6>
+                                <div class="text-muted small">${cert.organization}</div>
+                                ${cert.issueDate ? `<div class="text-muted small">Issued: ${new Date(cert.issueDate).toLocaleDateString()}</div>` : ''}
+                                ${cert.certificateId ? `<div class="text-muted small">ID: ${cert.certificateId}</div>` : ''}
+                            </div>
+                        </div>
+                    `).join('');
+                } else {
+                    certsDisplay.innerHTML = '<p class="text-muted">No certificates added yet</p>';
+                }
+            }
+            
+            const modal = new bootstrap.Modal(document.getElementById('qualificationsModal'));
+            modal.show();
+        }
+        
+        window.openProfessionalSetup = openProfessionalSetup;
+        window.updateSkillsDisplay = updateSkillsDisplay;
+        window.toggleSkill = toggleSkill;
+        window.addCustomSkill = addCustomSkill;
+        window.addCertificate = addCertificate;
+        window.removeCertificate = removeCertificate;
+        window.submitProfessionalSetup = submitProfessionalSetup;
+        window.openQualifications = openQualifications;
         
         function loadKYCData() {
             if (!currentUser) return;

@@ -282,3 +282,100 @@
         </div>
     </div>
 </div>
+
+<!-- Professional Setup Modal -->
+<div class="modal fade" id="professionalSetupModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-award"></i> Become a Professional</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle"></i>
+                    <strong>Professional Benefits:</strong> Access to premium tasks with 20% higher pay, verified badge, and priority listing.
+                </div>
+                
+                <h6 class="mb-3">Step 1: Add Your Skills</h6>
+                <div class="mb-3">
+                    <label class="form-label">Select Your Skills/Expertise</label>
+                    <div id="skills-selection" class="d-flex flex-wrap gap-2 mb-2">
+                        <!-- Skills will be populated here -->
+                    </div>
+                    <div class="input-group">
+                        <input type="text" class="form-control" id="custom-skill-input" placeholder="Add custom skill">
+                        <button class="btn btn-outline-secondary" onclick="addCustomSkill()">
+                            <i class="bi bi-plus"></i> Add
+                        </button>
+                    </div>
+                </div>
+                
+                <h6 class="mb-3">Step 2: Add Certificates (Optional)</h6>
+                <div class="mb-3">
+                    <label class="form-label">Certificate Name</label>
+                    <input type="text" class="form-control" id="cert-name" placeholder="e.g., Plumbing Certification">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Issuing Organization</label>
+                    <input type="text" class="form-control" id="cert-org" placeholder="e.g., Nepal Plumbing Association">
+                </div>
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">Issue Date</label>
+                        <input type="date" class="form-control" id="cert-date">
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">Certificate ID (Optional)</label>
+                        <input type="text" class="form-control" id="cert-id" placeholder="Certificate number">
+                    </div>
+                </div>
+                <button class="btn btn-outline-primary btn-sm mb-3" onclick="addCertificate()">
+                    <i class="bi bi-plus-circle"></i> Add Certificate
+                </button>
+                
+                <div id="certificates-list" class="mb-3">
+                    <!-- Added certificates will appear here -->
+                </div>
+                
+                <div class="alert alert-warning">
+                    <i class="bi bi-exclamation-triangle"></i>
+                    <strong>Note:</strong> For demo purposes, professional status is auto-approved. In production, admin verification would be required.
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button class="btn btn-success" onclick="submitProfessionalSetup()">
+                    <i class="bi bi-check-circle"></i> Complete Setup
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Manage Qualifications Modal -->
+<div class="modal fade" id="qualificationsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-file-earmark-text"></i> My Qualifications</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <h6 class="mb-3">Skills</h6>
+                <div id="current-skills-display" class="mb-4">
+                    <!-- Current skills will be displayed here -->
+                </div>
+                
+                <h6 class="mb-3">Certificates</h6>
+                <div id="current-certificates-display">
+                    <!-- Current certificates will be displayed here -->
+                </div>
+                
+                <button class="btn btn-primary mt-3" onclick="openProfessionalSetup()">
+                    <i class="bi bi-plus-circle"></i> Add More
+                </button>
+            </div>
+        </div>
+    </div>
+</div>

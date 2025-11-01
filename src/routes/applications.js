@@ -102,7 +102,7 @@ router.get('/task/:taskId', authMiddleware, async (req, res) => {
     }
 
     const applications = await Application.find({ taskId })
-      .populate('applicantId', 'name phone profilePhoto ratingAvg ratingCount ratingAvgAsTasker ratingCountAsTasker isProfessional skills')
+      .populate('applicantId', 'name phone profilePhoto ratingAvg ratingCount ratingAvgAsTasker ratingCountAsTasker isProfessional skills certificates')
       .sort({ createdAt: -1 })
       .lean();
 
@@ -137,6 +137,7 @@ router.get('/task/:taskId', authMiddleware, async (req, res) => {
             ratingCountAsTasker: app.applicantId.ratingCountAsTasker || 0,
             isProfessional: app.applicantId.isProfessional || false,
             skills: app.applicantId.skills || [],
+            certificates: app.applicantId.certificates || [],
             completedTasks
           }
         };

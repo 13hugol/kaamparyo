@@ -104,6 +104,36 @@ router.put('/me', authMiddleware, async (req, res) => {
   res.json({ ok: true, user: updated });
 });
 
+// Professional Setup
+router.post('/professional-setup', authMiddleware, async (req, res) => {
+  try {
+    const user = getUser(req);
+    const { skills, certificates } = req.body;
+    
+    // Validation
+    if (!skills || !Array.isArray(skills) || skills.length === 0) {
+      return res.status(400).json({ error: 'At least one skill is required' });
+    }
+    
+    // Update user with professional status
+    const updatedUser = await User.findByIdAndUpdate(
+      user._id,
+      {
+        isProfessional: true, // Auto-approve for demo
+        professionalVerifiedAt: new Date(),
+        skills: skills,
+        certificates: certificates || []
+      },
+      { new: true }
+    );
+    
+    res.json({ ok: true, user: updatedUser });
+  } catch (error) {
+    console.error('Professional setup error:', error);
+    res.status(500).json({ error: 'Failed to setup professional account' });
+  }
+});
+
 // Submit KYC
 router.post('/kyc', authMiddleware, async (req, res) => {
   try {

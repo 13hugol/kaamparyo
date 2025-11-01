@@ -35,6 +35,12 @@ const UserSchema = new Schema({
   bio: { type: String, maxlength: 500 },
   languages: [{ type: String }], // e.g., ['English', 'Nepali']
   skills: [{ type: String }], // e.g., ['Plumbing', 'Delivery', 'Cleaning']
+  certificates: [{
+    name: { type: String, required: true },
+    organization: { type: String, required: true },
+    issueDate: { type: Date },
+    certificateId: { type: String }
+  }],
   badges: [{ type: String }], // e.g., ['Top Performer', 'Fast Responder']
   tier: { type: String, enum: ['basic', 'standard', 'pro'], default: 'standard' }, // Service tier
   portfolio: [{
