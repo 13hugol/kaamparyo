@@ -117,6 +117,48 @@ router.get('/:id/metrics', authMiddleware, async (req, res) => {
   }});
 });
 
+// Get user reviews
+router.get('/:id/reviews', authMiddleware, async (req, res) => {
+  const userId = req.params.id;
+  const limit = parseInt(req.query.limit) || 10;
+  const type = req.query.type; // 'customer' or 'tasker'
+  
+  try {
+    const Review = require('../models/Review');
+    const Task = require('../models/Task');
+    
+    // Build query
+    const query = { revieweeId: userId };
+    if (type && ['customer', 'tasker'].includes(type)) {
+      query.type = type;
+    }
+    
+    // Get reviews where this user is the reviewee
+    const reviews = await Review.find(query)
+      .sort({ createdAt: -1 })
+      .limit(limit)
+      .populate('reviewerId', 'name phone')
+      .populate('taskId', 'title')
+      .lean();
+    
+    // Format reviews with reviewer name and task title
+    const formattedReviews = reviews.map(review => ({
+      _id: review._id,
+      rating: review.rating,
+      comment: review.comment,
+      type: review.type,
+      createdAt: review.createdAt,
+      reviewerName: review.reviewerId?.name || maskPhone(review.reviewerId?.phone) || 'Anonymous',
+      taskTitle: review.taskId?.title || 'Task'
+    }));
+    
+    res.json({ ok: true, reviews: formattedReviews });
+  } catch (error) {
+    console.error('Error fetching reviews:', error);
+    res.status(500).json({ error: 'Failed to fetch reviews' });
+  }
+});
+
 // Upload ID document for verification
 const multer = require('multer');
 const path = require('path');
@@ -263,6 +305,10 @@ router.post('/me/redeem-points', authMiddleware, async (req, res) => {
   
   const currentUser = await User.findById(user._id).select('loyaltyPoints wallet');
   
+  if (!currentUser) {
+    return res.status(404).json({ error: 'User not found' });
+  }
+  
   if (currentUser.loyaltyPoints < points) {
     return res.status(400).json({ error: 'Insufficient loyalty points' });
   }
@@ -296,6 +342,10 @@ router.post('/me/redeem-points', authMiddleware, async (req, res) => {
 router.get('/me/loyalty', authMiddleware, async (req, res) => {
   const user = getUser(req);
   const currentUser = await User.findById(user._id).select('loyaltyPoints');
+  
+  if (!currentUser) {
+    return res.status(404).json({ error: 'User not found' });
+  }
   
   res.json({ 
     ok: true, 

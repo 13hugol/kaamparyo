@@ -26,7 +26,10 @@ app.use(express.static(path.join(__dirname, '../public')));
 
 app.get('/logo.png', (req, res) => res.sendFile(path.join(__dirname, './logo.png')));
 app.get('/health', (req, res) => res.json({ ok: true, timestamp: new Date().toISOString() }));
-app.get('/api/config', (req, res) => res.json({ googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY || '' }));
+app.get('/api/config', (req, res) => res.json({ 
+  googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY || '',
+  galliMapsApiKey: process.env.GALLIMAPS_API_KEY || 'e63a1458-7833-4b82-b946-19e4ef1f1138'
+}));
 
 app.use('/auth', authRoutes);
 app.use('/tasks', taskRoutes);
@@ -36,8 +39,23 @@ app.use('/categories', categoriesRoutes);
 app.use('/settings', settingsRoutes);
 
 app.get('*', (req, res, next) => {
-  const isApi = req.path.startsWith('/auth') || req.path.startsWith('/tasks') || req.path.startsWith('/users') || req.path.startsWith('/admin') || req.path.startsWith('/uploads') || req.path.startsWith('/health');
-  if (!isApi && req.method === 'GET' && req.accepts('html')) return res.sendFile(path.join(__dirname, '../public/index.html'));
+  const isApi = req.path.startsWith('/auth') || req.path.startsWith('/tasks') || req.path.startsWith('/users') || req.path.startsWith('/admin') || req.path.startsWith('/uploads') || req.path.startsWith('/health') || req.path.startsWith('/api') || req.path.startsWith('/categories') || req.path.startsWith('/settings');
+  
+  // Don't intercept static files
+  if (isApi || req.path.includes('.')) {
+    return next();
+  }
+  
+  // For root path, serve home.html (main entry point)
+  if (req.path === '/' && req.method === 'GET' && req.accepts('html')) {
+    return res.sendFile(path.join(__dirname, '../public/home.html'));
+  }
+  
+  // For other HTML requests without extension, serve home.html
+  if (req.method === 'GET' && req.accepts('html')) {
+    return res.sendFile(path.join(__dirname, '../public/home.html'));
+  }
+  
   next();
 });
 

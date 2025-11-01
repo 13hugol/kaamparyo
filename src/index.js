@@ -60,14 +60,24 @@ app.set('io', io);
 io.on('connection', (socket) => {
   console.log('Client connected:', socket.id);
 
-  socket.on('join_tasker', () => {
+  socket.on('join_tasker', (userId) => {
     socket.join('online:taskers');
-    console.log('Tasker joined:', socket.id);
+    if (userId) {
+      socket.join(userId); // Join user-specific room
+      console.log('Tasker joined:', socket.id, 'userId:', userId);
+    } else {
+      console.log('Tasker joined:', socket.id);
+    }
   });
 
-  socket.on('join_requester', () => {
+  socket.on('join_requester', (userId) => {
     socket.join('online:requesters');
-    console.log('Requester joined:', socket.id);
+    if (userId) {
+      socket.join(userId); // Join user-specific room
+      console.log('Requester joined:', socket.id, 'userId:', userId);
+    } else {
+      console.log('Requester joined:', socket.id);
+    }
   });
 
   socket.on('location_update', async (data) => {
@@ -154,8 +164,10 @@ setInterval(async () => {
       await t.save();
       const io = server.listeners('request')[0]?.get('io');
       if (io) {
-        io.emit('task_cancelled', { taskId: t._id, auto: true, reposted: true });
-        io.emit('task_posted', { id: t._id, title: t.title, price: t.price, lat: t.location.coordinates[1], lng: t.location.coordinates[0], categoryId: t.categoryId });
+        // Notify requester about cancellation
+        io.to(t.requesterId.toString()).emit('task_cancelled', { taskId: t._id, auto: true, reposted: true });
+        // Notify taskers about new task
+        io.to('online:taskers').emit('task_posted', { id: t._id, title: t.title, price: t.price, lat: t.location.coordinates[1], lng: t.location.coordinates[0], categoryId: t.categoryId });
       }
       console.log('Auto-refunded and reposted task', t._id.toString());
     }

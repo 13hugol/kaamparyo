@@ -95,9 +95,9 @@ router.post('/', authMiddleware, async (req, res) => {
   // record transaction as held
   await Transaction.create({ taskId: task._id, amount: price, platformFee: Math.round((Number(process.env.PLATFORM_FEE_PCT) / 100) * price), status: 'held', providerRef: paymentIntent.id });
 
-  // broadcast to taskers (simple approach: emit to all; client filters)
+  // broadcast to online taskers only (not to all users)
   const io = req.app.get('io');
-  io.emit('task_posted', {
+  io.to('online:taskers').emit('task_posted', {
     id: task._id,
     title: task.title,
     price: task.price,
@@ -148,6 +148,10 @@ router.get('/nearby', authMiddleware, async (req, res) => {
   const User = require('../models/User');
   const currentUser = await User.findById(user._id).select('tier');
   
+  if (!currentUser) {
+    return res.status(404).json({ error: 'User not found' });
+  }
+  
   const { lat, lng, radiusKm } = req.query;
   const meters = (radiusKm ? Number(radiusKm) : Number(process.env.DEFAULT_RADIUS_KM || 50)) * 1000; // Increased default from 3km to 50km
   
@@ -176,6 +180,10 @@ router.post('/:id/accept', authMiddleware, async (req, res) => {
   const User = require('../models/User');
   const tasker = await User.findById(user._id).select('tier');
   
+  if (!tasker) {
+    return res.status(404).json({ error: 'User not found' });
+  }
+  
   // Prevent accepting own tasks
   const task = await Task.findById(req.params.id);
   if (!task) return res.status(404).json({ error: 'Task not found' });
@@ -203,9 +211,10 @@ router.post('/:id/accept', authMiddleware, async (req, res) => {
 
   if (!updated) return res.status(409).json({ error: 'Task already assigned or not available' });
 
-  // notify clients
+  // notify requester and tasker
   const io = req.app.get('io');
-  io.emit('task_assigned', { taskId, assignedTaskerId: user._id });
+  io.to(updated.requesterId.toString()).emit('task_assigned', { taskId, assignedTaskerId: user._id });
+  io.to(user._id).emit('task_assigned', { taskId, assignedTaskerId: user._id });
 
   res.json({ ok: true, task: updated });
 });
@@ -273,12 +282,14 @@ router.post('/:id/approve', authMiddleware, async (req, res) => {
   
   // Check and update rewards level for tasker
   const taskerUser = await User.findById(task.assignedTaskerId).select('taskPoints rewardsLevel');
-  const newLevel = calculateRewardsLevel(taskerUser.taskPoints);
-  if (newLevel !== taskerUser.rewardsLevel) {
-    taskerUser.rewardsLevel = newLevel;
-    await taskerUser.save();
-    // Award perks based on level
-    await awardLevelPerks(task.assignedTaskerId, newLevel);
+  if (taskerUser) {
+    const newLevel = calculateRewardsLevel(taskerUser.taskPoints);
+    if (newLevel !== taskerUser.rewardsLevel) {
+      taskerUser.rewardsLevel = newLevel;
+      await taskerUser.save();
+      // Award perks based on level
+      await awardLevelPerks(task.assignedTaskerId, newLevel);
+    }
   }
 
   // update transaction and task
@@ -339,7 +350,9 @@ router.post('/:id/messages', authMiddleware, async (req, res) => {
   const to = task.requesterId.toString() === user._id.toString() ? task.assignedTaskerId : task.requesterId;
   const msg = await Message.create({ taskId: task._id, from: user._id, to, text: text.trim() });
   const io = req.app.get('io');
-  io.emit('message', { taskId: task._id, from: user._id, text: msg.text, createdAt: msg.createdAt });
+  // Send message only to the recipient and sender
+  io.to(to.toString()).emit('message', { taskId: task._id, from: user._id, text: msg.text, createdAt: msg.createdAt });
+  io.to(user._id).emit('message', { taskId: task._id, from: user._id, text: msg.text, createdAt: msg.createdAt });
   res.json({ ok: true, message: msg });
 });
 
@@ -359,16 +372,44 @@ router.post('/:id/review', authMiddleware, async (req, res) => {
   const existing = await Review.findOne({ taskId: task._id, reviewerId: user._id });
   if (existing) return res.status(409).json({ error: 'Already reviewed' });
 
-  const review = await Review.create({ taskId: task._id, reviewerId: user._id, revieweeId, rating, comment });
+  // Determine review type: if requester is reviewing, they're reviewing the tasker
+  // if tasker is reviewing, they're reviewing the customer
+  const reviewType = isRequester ? 'tasker' : 'customer';
 
-  // update reviewee aggregates
+  const review = await Review.create({ 
+    taskId: task._id, 
+    reviewerId: user._id, 
+    revieweeId, 
+    rating, 
+    comment,
+    type: reviewType
+  });
+
+  // update reviewee aggregates (both overall and channel-specific)
   const User = require('../models/User');
-  const rUser = await User.findById(revieweeId).select('ratingAvg ratingCount');
-  const newCount = (rUser.ratingCount || 0) + 1;
-  const newAvg = ((rUser.ratingAvg || 0) * (rUser.ratingCount || 0) + rating) / newCount;
-  rUser.ratingAvg = Math.round(newAvg * 10) / 10;
-  rUser.ratingCount = newCount;
-  await rUser.save();
+  const rUser = await User.findById(revieweeId).select('ratingAvg ratingCount ratingAvgAsCustomer ratingCountAsCustomer ratingAvgAsTasker ratingCountAsTasker');
+  if (rUser) {
+    // Update overall rating
+    const newCount = (rUser.ratingCount || 0) + 1;
+    const newAvg = ((rUser.ratingAvg || 0) * (rUser.ratingCount || 0) + rating) / newCount;
+    rUser.ratingAvg = Math.round(newAvg * 10) / 10;
+    rUser.ratingCount = newCount;
+    
+    // Update channel-specific rating
+    if (reviewType === 'customer') {
+      const newCountCustomer = (rUser.ratingCountAsCustomer || 0) + 1;
+      const newAvgCustomer = ((rUser.ratingAvgAsCustomer || 0) * (rUser.ratingCountAsCustomer || 0) + rating) / newCountCustomer;
+      rUser.ratingAvgAsCustomer = Math.round(newAvgCustomer * 10) / 10;
+      rUser.ratingCountAsCustomer = newCountCustomer;
+    } else {
+      const newCountTasker = (rUser.ratingCountAsTasker || 0) + 1;
+      const newAvgTasker = ((rUser.ratingAvgAsTasker || 0) * (rUser.ratingCountAsTasker || 0) + rating) / newCountTasker;
+      rUser.ratingAvgAsTasker = Math.round(newAvgTasker * 10) / 10;
+      rUser.ratingCountAsTasker = newCountTasker;
+    }
+    
+    await rUser.save();
+  }
 
   res.json({ ok: true, review });
 });
@@ -478,8 +519,10 @@ router.delete('/:id', authMiddleware, async (req, res) => {
     task.paymentIntentId = undefined;
     await task.save();
     const io = req.app.get('io');
-    io.emit('task_cancelled', { taskId: task._id, reposted: true });
-    io.emit('task_posted', { id: task._id, title: task.title, price: task.price, lat: task.location.coordinates[1], lng: task.location.coordinates[0], categoryId: task.categoryId });
+    // Notify requester about cancellation
+    io.to(task.requesterId.toString()).emit('task_cancelled', { taskId: task._id, reposted: true });
+    // Notify taskers about new task
+    io.to('online:taskers').emit('task_posted', { id: task._id, title: task.title, price: task.price, lat: task.location.coordinates[1], lng: task.location.coordinates[0], categoryId: task.categoryId });
     return res.json({ ok: true, reposted: true });
   }
 
@@ -735,18 +778,20 @@ router.post('/:id/offer', authMiddleware, async (req, res) => {
   const io = req.app.get('io');
   const User = require('../models/User');
   const tasker = await User.findById(user._id).select('name profilePhoto ratingAvg');
-  io.to(task.requesterId.toString()).emit('task_offer_received', {
-    taskId: task._id,
-    offer: {
-      taskerId: user._id,
-      taskerName: tasker.name,
-      taskerPhoto: tasker.profilePhoto,
-      taskerRating: tasker.ratingAvg,
-      proposedPrice,
-      message,
-      createdAt: new Date()
-    }
-  });
+  if (tasker) {
+    io.to(task.requesterId.toString()).emit('task_offer_received', {
+      taskId: task._id,
+      offer: {
+        taskerId: user._id,
+        taskerName: tasker.name,
+        taskerPhoto: tasker.profilePhoto,
+        taskerRating: tasker.ratingAvg,
+        proposedPrice,
+        message,
+        createdAt: new Date()
+      }
+    });
+  }
   
   res.json({ ok: true, message: 'Offer submitted successfully' });
 });

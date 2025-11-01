@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#dc2626">
+    <link rel="icon" href="/logo.png" type="image/png">
+    <title>My Active Tasks - KaamParyo</title>
+    
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-light">
+        <div class="container">
+            <a class="navbar-brand d-flex align-items-center gap-2" href="/">
+                <img src="/logo.png" alt="KP" style="height:28px;width:28px;border-radius:6px;object-fit:cover">
+                <span>KaamParyo</span>
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto d-none d-lg-flex">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/"><i class="bi bi-house-door"></i> Home</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="mypost.html"><i class="bi bi-clipboard-check"></i> My Posts</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="available.html"><i class="bi bi-search"></i> Available</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="activity.html"><i class="bi bi-hourglass-split"></i> Active</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="stats.html"><i class="bi bi-graph-up"></i> Stats</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="profile.html"><i class="bi bi-person"></i> Profile</a>
+                    </li>
+                </ul>
+                <ul class="navbar-nav ms-auto align-items-center">
+                    <li class="nav-item">
+                        <button id="online-toggle-btn" class="btn btn-outline-secondary me-2" onclick="toggleOnline()">
+                            <i class="bi bi-toggle-off"></i> Go Online
+                        </button>
+                    </li>
+                    <li class="nav-item">
+                        <div class="dropdown">
+                            <button class="btn btn-light dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                                <i class="bi bi-person-circle"></i> <span id="user-name">User</span>
+                            </button>
+                            <ul class="dropdown-menu dropdown-menu-end">
+                                <li><a class="dropdown-item" href="profile.html"><i class="bi bi-wallet2"></i> Wallet</a></li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li><a class="dropdown-item text-danger" href="#" onclick="logout()"><i class="bi bi-box-arrow-right"></i> Logout</a></li>
+                            </ul>
+                        </div>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <h2 class="mb-4"><i class="bi bi-hourglass-split"></i> My Active Tasks</h2>
+        <p class="text-muted">Tasks you've accepted and are working on</p>
+
+        <div id="my-accepted-tasks"></div>
+    </div>
+
+    <!-- Mobile Bottom Navigation -->
+    <div class="kp-bottom-nav d-md-none">
+        <button class="kp-nav-item" onclick="window.location.href='/'">
+            <i class="bi bi-house-door"></i>
+            <span>Home</span>
+        </button>
+        <button class="kp-nav-item" onclick="window.location.href='mypost.html'">
+            <i class="bi bi-clipboard-check"></i>
+            <span>My Posts</span>
+        </button>
+        <button class="kp-nav-item" onclick="window.location.href='available.html'">
+            <i class="bi bi-search"></i>
+            <span>Available</span>
+        </button>
+        <button class="kp-nav-item active" onclick="window.location.href='activity.html'">
+            <i class="bi bi-hourglass-split"></i>
+            <span>Active</span>
+        </button>
+        <button class="kp-nav-item" onclick="window.location.href='profile.html'">
+            <i class="bi bi-person-circle"></i>
+            <span>Profile</span>
+        </button>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toast-container" class="position-fixed top-0 end-0 p-3" style="z-index:9999"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.socket.io/4.6.0/socket.io.min.js"></script>
+    <script src="https://gallimap.com/static/dist/js/gallimaps.vector.min.latest.js"></script>
+    <script src="auth-utils.js"></script>
+    <script src="load-modals.js"></script>
+    <script src="galliMapsService.js"></script>
+    <script src="app.js"></script>
+    <script>
+        // Load tasks on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            if (!window.authUtils.requireAuth()) return;
+            
+            token = window.authUtils.initAuth();
+            
+            // Load cached user data from cookie for faster UI update
+            const cachedUser = window.authUtils.getUser();
+            if (cachedUser) {
+                currentUser = cachedUser;
+                isOnline = !!currentUser.isOnline;
+                
+                const userName = document.getElementById('user-name');
+                if (userName) userName.textContent = currentUser.name || currentUser.phone || 'User';
+            }
+            
+            if (token) {
+                loadUser();
+                loadMyAcceptedTasks();
+            }
+        });
+    </script>
+</body>
+</html>

@@ -14,10 +14,10 @@ class GalliMapsService {
     this.isOnline = navigator.onLine;
     this.retryAttempts = new Map(); // Track retry attempts for operations
     this.maxRetries = 3;
-    
+
     // Set up network connectivity monitoring
     this._setupNetworkMonitoring();
-    
+
     // Check library load status
     this._checkLibraryLoad();
   }
@@ -62,11 +62,11 @@ class GalliMapsService {
       this._logError('GalliMaps library loaded successfully', { level: 'info' });
     } else {
       this.isLibraryLoaded = false;
-      this._logError('GalliMaps library not loaded', { 
+      this._logError('GalliMaps library not loaded', {
         level: 'error',
         context: 'library_check'
       });
-      
+
       // Retry checking after a delay
       setTimeout(() => this._checkLibraryLoad(), 1000);
     }
@@ -87,7 +87,7 @@ class GalliMapsService {
     };
 
     const level = context.level || 'error';
-    
+
     switch (level) {
       case 'info':
         console.log('[GalliMaps Info]', message, context);
@@ -118,7 +118,7 @@ class GalliMapsService {
    */
   async _retryOperation(operationKey, operation, context = {}) {
     const attempts = this.retryAttempts.get(operationKey) || 0;
-    
+
     if (attempts >= this.maxRetries) {
       this.retryAttempts.delete(operationKey);
       const error = new Error(`Operation failed after ${this.maxRetries} retries`);
@@ -142,11 +142,11 @@ class GalliMapsService {
         error: error.message,
         ...context
       });
-      
+
       // Wait before retrying (exponential backoff)
       const delay = Math.min(1000 * Math.pow(2, attempts), 5000);
       await new Promise(resolve => setTimeout(resolve, delay));
-      
+
       return this._retryOperation(operationKey, operation, context);
     }
   }
@@ -234,7 +234,7 @@ class GalliMapsService {
       result.inNepalBounds = false;
       const warning = `Coordinates [${lat.toFixed(4)}, ${lng.toFixed(4)}] are outside Nepal bounds (lat: 26-31, lng: 80-89)`;
       result.warnings.push(warning);
-      
+
       this._logError(warning, {
         level: 'warn',
         lat,
@@ -360,7 +360,7 @@ class GalliMapsService {
         },
         customClickFunctions: []
       };
-      
+
       console.log('[GalliMaps] Initializing with config:', galliMapsConfig);
       const galliMap = new GalliMapPlugin(galliMapsConfig);
 
@@ -400,7 +400,7 @@ class GalliMapsService {
               mapId,
               containerId
             });
-            
+
             const authError = new Error('Map service unavailable. Please try again later.');
             if (onError) onError(authError);
           } else {
@@ -537,13 +537,13 @@ class GalliMapsService {
         galliMarker.on('dragend', () => {
           const newPos = galliMarker.getLngLat();
           const newLatLng = [newPos.lat, newPos.lng];
-          
+
           // Update stored position
           const markerData = markers.get(markerId);
           if (markerData) {
             markerData.latLng = newLatLng;
           }
-          
+
           onDragEnd(newLatLng);
         });
       }
@@ -667,7 +667,7 @@ class GalliMapsService {
     const sanitized = searchText.trim().replace(/[<>]/g, '').substring(0, 100);
 
     const operationKey = `autocomplete-${sanitized}`;
-    
+
     return this._retryOperation(operationKey, async () => {
       try {
         this._logError(`Autocomplete search: "${sanitized}"`, {
@@ -693,7 +693,7 @@ class GalliMapsService {
             });
             throw error;
           }
-          
+
           const error = new Error(`Autocomplete API error: ${response.status}`);
           this._logError(error.message, {
             status: response.status,
@@ -704,7 +704,7 @@ class GalliMapsService {
         }
 
         const data = await response.json();
-        
+
         this._logError(`Autocomplete results: ${data.results?.length || 0} found`, {
           level: 'info',
           context: 'autocomplete_search',
@@ -731,7 +731,7 @@ class GalliMapsService {
           });
           throw new Error('Search request timed out. Please try again.');
         }
-        
+
         this._logError('Autocomplete search failed', {
           error: error.message,
           context: 'autocomplete_search',
@@ -752,7 +752,7 @@ class GalliMapsService {
    */
   async searchLocation(searchData) {
     let query;
-    
+
     if (typeof searchData === 'string') {
       query = searchData.trim();
     } else if (searchData.id) {
@@ -777,7 +777,7 @@ class GalliMapsService {
     }
 
     const operationKey = `search-${query}`;
-    
+
     return this._retryOperation(operationKey, async () => {
       try {
         this._logError(`Location search: "${query}"`, {
@@ -803,7 +803,7 @@ class GalliMapsService {
             });
             throw error;
           }
-          
+
           const error = new Error(`Search API error: ${response.status}`);
           this._logError(error.message, {
             status: response.status,
@@ -814,7 +814,7 @@ class GalliMapsService {
         }
 
         const data = await response.json();
-        
+
         if (!data.result) {
           const error = new Error('Location not found');
           this._logError(error.message, {
@@ -858,7 +858,7 @@ class GalliMapsService {
           });
           throw new Error('Search request timed out. Please try again.');
         }
-        
+
         this._logError('Location search failed', {
           error: error.message,
           context: 'location_search',
@@ -1014,7 +1014,7 @@ class GalliMapsService {
   _addCustomZoomControls(mapId, position = 'top-right') {
     const mapData = this.getMap(mapId);
     const container = document.getElementById(mapData.containerId);
-    
+
     if (!container) return;
 
     // Check if controls already exist
@@ -1093,11 +1093,11 @@ class GalliMapsService {
    */
   getZoom(mapId) {
     const mapData = this.getMap(mapId);
-    
+
     if (mapData.instance.getZoom) {
       return mapData.instance.getZoom();
     }
-    
+
     return mapData.zoom;
   }
 
@@ -1112,7 +1112,7 @@ class GalliMapsService {
 
     // Clamp zoom level to valid range
     const clampedZoom = Math.max(5, Math.min(25, zoom));
-    
+
     if (zoom < 5 || zoom > 25) {
       console.warn(`Zoom level ${zoom} clamped to ${clampedZoom} (valid range: 5-25)`);
     }
@@ -1438,7 +1438,7 @@ class GalliMapsService {
       } else if (circleData.sourceId) {
         // Update GeoJSON source
         const points = this._createCirclePoints(circleData.center[0], circleData.center[1], radiusKm);
-        
+
         if (mapData.instance.getSource(circleData.sourceId)) {
           mapData.instance.getSource(circleData.sourceId).setData({
             type: 'Feature',
@@ -1473,13 +1473,13 @@ class GalliMapsService {
 
     for (let i = 0; i <= numPoints; i++) {
       const angle = (i * 360 / numPoints) * Math.PI / 180;
-      
+
       const dx = radiusKm * Math.cos(angle);
       const dy = radiusKm * Math.sin(angle);
-      
+
       const deltaLat = dy / earthRadius * (180 / Math.PI);
       const deltaLng = dx / (earthRadius * Math.cos(lat * Math.PI / 180)) * (180 / Math.PI);
-      
+
       points.push([lat + deltaLat, lng + deltaLng]);
     }
 

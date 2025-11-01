@@ -7,6 +7,7 @@ const ReviewSchema = new Schema({
   revieweeId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
   rating: { type: Number, required: true, min: 1, max: 5 },
   comment: { type: String },
+  type: { type: String, enum: ['customer', 'tasker'], required: true }, // customer = reviewed as customer, tasker = reviewed as tasker
   createdAt: { type: Date, default: Date.now }
 });
 

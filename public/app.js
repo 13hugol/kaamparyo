@@ -1,7 +1,9 @@
 // TaskNow Frontend Logic
 const API_URL = window.location.origin;
 const NPR = (paisa) => `NPR ${(Number(paisa || 0) / 100).toLocaleString()}`;
-let token = localStorage.getItem('token');
+
+// Initialize token from cookie (will be set by auth-utils.js)
+let token = null;
 let currentUser = null;
 let socket = null;
 let map = null;
@@ -51,14 +53,35 @@ window.addEventListener('gallimaps:network', (event) => {
 
 // Init
 document.addEventListener('DOMContentLoaded', () => {
+  // Initialize token and user from cookie
+  token = window.authUtils ? window.authUtils.initAuth() : localStorage.getItem('token');
+  
+  // Try to load user from cookie first
+  if (window.authUtils) {
+    const cachedUser = window.authUtils.getUser();
+    if (cachedUser) {
+      currentUser = cachedUser;
+      isOnline = !!currentUser.isOnline;
+    }
+  }
+  
   // Check if GalliMaps library is loaded
   checkGalliMapsLibrary();
 
   if (token) loadUser();
+  
+  // Try to attach modal handlers (will retry when modals are loaded)
   attachModalHandlers();
-  attachTabHandlers();
+  
   loadCategories();
   attachRadiusListener();
+});
+
+// Listen for modals loaded event and re-attach handlers
+window.addEventListener('modalsLoaded', () => {
+  console.log('[App] Modals loaded, attaching handlers...');
+  attachModalHandlers();
+  attachTaskFormHandler();
 });
 
 // Check GalliMaps library load status
@@ -133,48 +156,31 @@ function attachRadiusListener() {
 function attachModalHandlers() {
   const postTaskModal = document.getElementById('postTaskModal');
   if (postTaskModal) {
+    console.log('[Map] Attaching handler to postTaskModal');
     postTaskModal.addEventListener('shown.bs.modal', () => {
+      console.log('[Map] Post task modal shown, initializing map...');
       setTimeout(() => initMap(), 200);
     });
+  } else {
+    console.warn('[Map] postTaskModal not found');
   }
+  
   const setLocModal = document.getElementById('setLocationModal');
   if (setLocModal) {
+    console.log('[Map] Attaching handler to setLocationModal');
     setLocModal.addEventListener('shown.bs.modal', () => {
+      console.log('[Map] Set location modal shown, initializing map...');
       setTimeout(() => initTaskerMapDirect(), 500);
     });
+  } else {
+    console.warn('[Map] setLocationModal not found');
   }
 }
 
-function attachTabHandlers() {
-  // Mobile bottom nav uses switchTab; also bind tab events for desktop
-  document.querySelectorAll('a[data-bs-toggle="pill"]').forEach(tab => {
-    tab.addEventListener('shown.bs.tab', (e) => {
-      const target = e.target.getAttribute('href');
-      if (target === '#available-tasks' && taskerLocation) {
-        loadNearbyTasks();
-      }
-      if (target === '#active-tasks') {
-        loadMyAcceptedTasks();
-      }
-      if (target === '#my-posted-tasks') {
-        loadMyTasks();
-      }
-      if (target === '#stats-panel') {
-        loadStats();
-      }
-    });
-  });
-}
+// Expose function globally for load-modals.js
+window.attachModalHandlers = attachModalHandlers;
 
-// Landing helpers
-function showLanding() {
-  document.getElementById('hero-section').classList.remove('hidden');
-  document.getElementById('app-container').classList.add('hidden');
-}
-
-function scrollToFeatures() {
-  document.getElementById('features-section').scrollIntoView({ behavior: 'smooth' });
-}
+// Landing helpers - removed, now using separate pages
 
 // Auth
 function showLogin() {
@@ -213,13 +219,27 @@ async function verifyOTP() {
     const res = await fetch(`${API_URL}/auth/verify-otp`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone, otp }) });
     const data = await res.json();
     if (res.ok) {
-      token = data.token; localStorage.setItem('token', token); currentUser = data.user;
+      token = data.token;
+      currentUser = data.user;
+      
+      // Save token and user to cookie and localStorage
+      if (window.authUtils) {
+        window.authUtils.saveToken(token);
+        window.authUtils.saveUser(currentUser);
+      } else {
+        localStorage.setItem('token', token);
+        localStorage.setItem('currentUser', JSON.stringify(currentUser));
+      }
+      
       if (!currentUser.name) {
         document.getElementById('otp-step').classList.add('hidden');
         document.getElementById('profile-step').classList.remove('hidden');
       } else {
-        bootstrap.Modal.getInstance(document.getElementById('loginModal')).hide();
-        enterApp(currentUser);
+        const modal = bootstrap.Modal.getInstance(document.getElementById('loginModal'));
+        if (modal) modal.hide();
+        
+        // Redirect to home page
+        window.location.href = '/';
       }
     } else { showToast(data.error || 'Invalid OTP', 'danger'); }
   } catch (e) { showToast(e.message, 'danger'); }
@@ -231,8 +251,11 @@ async function updateProfile() {
   try {
     const res = await fetch(`${API_URL}/auth/me`, { method: 'PUT', headers: authHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify({ name, lat: selectedLocation.lat, lng: selectedLocation.lng }) });
     if (res.ok) {
-      bootstrap.Modal.getInstance(document.getElementById('loginModal')).hide();
-      await loadUser();
+      const modal = bootstrap.Modal.getInstance(document.getElementById('loginModal'));
+      if (modal) modal.hide();
+      
+      // Redirect to home page
+      window.location.href = '/';
     }
   } catch (e) { showToast(e.message, 'danger'); }
 }
@@ -242,6 +265,21 @@ async function loadUser() {
     const res = await fetch(`${API_URL}/auth/me`, { headers: authHeaders() });
     if (!res.ok) { return logout(); }
     const data = await res.json();
+    
+    // Save user data to cookie
+    if (window.authUtils) {
+      window.authUtils.saveUser(data.user);
+    } else {
+      localStorage.setItem('currentUser', JSON.stringify(data.user));
+    }
+    
+    // If on landing/login page and logged in, redirect to home
+    const isLoginPage = window.location.pathname === '/index.html';
+    if (isLoginPage) {
+      window.location.href = '/';
+      return;
+    }
+    
     enterApp(data.user);
   } catch (e) { logout(); }
 }
@@ -249,41 +287,34 @@ async function loadUser() {
 function enterApp(user) {
   currentUser = user || currentUser;
   isOnline = !!currentUser?.isOnline;
-  const hero = document.getElementById('hero-section'); if (hero) hero.classList.add('hidden');
-  const appc = document.getElementById('app-container'); if (appc) appc.classList.remove('hidden');
-  const navLogin = document.getElementById('nav-login'); if (navLogin) navLogin.classList.add('hidden');
-  const navUser = document.getElementById('nav-user'); if (navUser) navUser.classList.remove('hidden');
-  const uname = document.getElementById('user-name'); if (uname) uname.textContent = (currentUser?.name || currentUser?.phone || 'User');
+  
+  // Update user name in navbar (works on all pages)
+  const uname = document.getElementById('user-name'); 
+  if (uname) uname.textContent = (currentUser?.name || currentUser?.phone || 'User');
+  
   updateOnlineToggle();
   connectSocket();
-  loadMyTasks();
   loadCategories();
 }
 
-// Mobile helpers
-function switchTab(hash) {
-  const link = document.querySelector(`a[href='${hash}']`);
-  if (link) {
-    const tab = new bootstrap.Tab(link);
-    tab.show();
-  }
-}
-
-function openPostTaskFab() {
-  const modal = new bootstrap.Modal(document.getElementById('postTaskModal'));
-  modal.show();
-}
-
-window.switchTab = switchTab;
-window.openPostTaskFab = openPostTaskFab;
+// Mobile helpers - removed, now using direct page navigation
 
 function logout() {
-  token = null; currentUser = null; localStorage.removeItem('token');
-  document.getElementById('hero-section').classList.remove('hidden');
-  document.getElementById('app-container').classList.add('hidden');
-  document.getElementById('nav-login').classList.remove('hidden');
-  document.getElementById('nav-user').classList.add('hidden');
+  token = null; 
+  currentUser = null;
+  
+  // Clear token from cookie and localStorage
+  if (window.authUtils) {
+    window.authUtils.clearToken();
+  } else {
+    localStorage.removeItem('token');
+    localStorage.removeItem('currentUser');
+  }
+  
   if (socket) socket.disconnect();
+  
+  // Redirect to home page (will show landing)
+  window.location.href = '/';
 }
 
 function authHeaders(extra = {}) { return { 'Authorization': `Bearer ${token}`, ...extra }; }
@@ -293,8 +324,16 @@ function connectSocket() {
   if (socket) { socket.disconnect(); }
   socket = io(API_URL);
   socket.on('connect', () => {
-    socket.emit('join_tasker');
-    socket.emit('join_requester');
+    // Join rooms with user ID for targeted notifications
+    if (currentUser && currentUser._id) {
+      socket.emit('join_tasker', currentUser._id);
+      socket.emit('join_requester', currentUser._id);
+      console.log('[Socket] Joined rooms with userId:', currentUser._id);
+    } else {
+      socket.emit('join_tasker');
+      socket.emit('join_requester');
+      console.log('[Socket] Joined rooms without userId');
+    }
   });
   socket.on('task_posted', (data) => { if (isOnline) { loadNearbyTasks(); showTaskToast(data); playBeep(); } else { showTaskToast(data); playBeep(); } });
   socket.on('task_assigned', () => { loadMyTasks(); loadMyAcceptedTasks(); showToast('Task accepted', 'info'); playBeep(); });
@@ -751,6 +790,8 @@ async function selectTaskerSearchResult(result) {
 }
 
 window.useCurrentLocation = function () {
+  console.log('[Location] Getting current location...');
+  
   if (!navigator.geolocation) {
     showToast('Geolocation not supported by your browser', 'danger');
     return;
@@ -761,6 +802,8 @@ window.useCurrentLocation = function () {
   navigator.geolocation.getCurrentPosition((pos) => {
     const { latitude, longitude } = pos.coords;
     selectedLocation = { lat: latitude, lng: longitude };
+    
+    console.log('[Location] Got location:', latitude, longitude);
 
     if (mapId && markerId) {
       try {
@@ -773,11 +816,16 @@ window.useCurrentLocation = function () {
 
         showToast('Location set to your current position', 'success');
       } catch (error) {
-        console.error('Failed to update location:', error);
+        console.error('[Location] Failed to update map:', error);
         showToast('Failed to update map location', 'danger');
       }
+    } else {
+      console.warn('[Location] Map not initialized yet, but location saved');
+      updateLocationDisplay();
+      showToast('Location saved. Map will update when ready.', 'success');
     }
   }, (err) => {
+    console.error('[Location] Geolocation error:', err);
     showToast('Unable to get your location: ' + err.message, 'danger');
   }, {
     enableHighAccuracy: true,
@@ -1110,11 +1158,22 @@ function renderCategoriesList(categories) {
   container.innerHTML = categories.map(c => `<div class="d-flex justify-content-between align-items-center border rounded p-2 mb-2"><div><strong>${escapeHtml(c.name)}</strong><div class="small text-muted">NPR ${(c.minPrice / 100).toLocaleString()} - ${(c.maxPrice / 100).toLocaleString()}</div></div><code class="small">${c._id}</code></div>`).join('');
 }
 
-// Post Task
-const createTaskForm = document.getElementById('create-task-form');
-if (createTaskForm) {
-  createTaskForm.addEventListener('submit', async (e) => {
+// Post Task - attach handler after modals are loaded
+function attachTaskFormHandler() {
+  const createTaskForm = document.getElementById('create-task-form');
+  if (!createTaskForm) {
+    console.warn('[Form] create-task-form not found');
+    return;
+  }
+  
+  // Remove existing listener if any
+  const newForm = createTaskForm.cloneNode(true);
+  createTaskForm.parentNode.replaceChild(newForm, createTaskForm);
+  
+  newForm.addEventListener('submit', async (e) => {
     e.preventDefault();
+    console.log('[Form] Submitting task...');
+    
     const sel = document.getElementById('task-category').value;
     const taskData = {
       title: document.getElementById('task-title').value,
@@ -1127,20 +1186,40 @@ if (createTaskForm) {
       lng: selectedLocation.lng,
       radiusKm: parseInt(document.getElementById('task-radius').value, 10)
     };
-    if (sel === 'custom' && !taskData.categoryName) { showToast('Please describe your custom category', 'warning'); return; }
+    
+    console.log('[Form] Task data:', taskData);
+    
+    if (sel === 'custom' && !taskData.categoryName) { 
+      showToast('Please describe your custom category', 'warning'); 
+      return; 
+    }
+    
     try {
-      const res = await fetch(`${API_URL}/tasks`, { method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify(taskData) });
+      const res = await fetch(`${API_URL}/tasks`, { 
+        method: 'POST', 
+        headers: authHeaders({ 'Content-Type': 'application/json' }), 
+        body: JSON.stringify(taskData) 
+      });
       const data = await res.json();
+      
       if (res.ok) {
+        console.log('[Form] Task posted successfully:', data.taskId);
         bootstrap.Modal.getInstance(document.getElementById('postTaskModal')).hide();
         openDemoCheckout({ taskId: data.taskId, amount: taskData.price, title: taskData.title });
-        createTaskForm.reset();
+        newForm.reset();
         loadMyTasks();
       } else {
+        console.error('[Form] Failed to post task:', data.error);
         showToast(data.error || 'Failed to post task', 'danger');
       }
-    } catch (e) { showToast(e.message, 'danger'); }
+    } catch (e) { 
+      console.error('[Form] Error posting task:', e);
+      showToast(e.message, 'danger'); 
+    }
   });
+  
+  console.log('[Form] Task form handler attached');
+}
 
   // Demo checkout helpers
   let lastDemoCheckout = null;
@@ -1171,11 +1250,12 @@ if (createTaskForm) {
     loadMyTasks();
   }
 
-  window.simulateCheckoutSuccess = simulateCheckoutSuccess;
-  window.simulateCheckoutFail = simulateCheckoutFail;
-  window.openDemoCheckout = openDemoCheckout;
+window.simulateCheckoutSuccess = simulateCheckoutSuccess;
+window.simulateCheckoutFail = simulateCheckoutFail;
+window.openDemoCheckout = openDemoCheckout;
+window.attachTaskFormHandler = attachTaskFormHandler;
 
-  // Edit task UI
+// Edit task UI
   let editingTaskId = null;
   function openEditTask(taskId) {
     editingTaskId = taskId;
@@ -1203,20 +1283,30 @@ if (createTaskForm) {
       else showToast(data.error || 'Failed to update', 'danger');
     } catch (e) { showToast(e.message, 'danger'); }
   }
-  window.openEditTask = openEditTask;
-  window.saveEditTask = saveEditTask;
-}
+window.openEditTask = openEditTask;
+window.saveEditTask = saveEditTask;
 
 // My Posted Tasks
 async function loadMyTasks() {
   window._myTasksCache = [];
-  if (!currentUser) return;
+  if (!currentUser) {
+    console.warn('[Tasks] Cannot load tasks - currentUser not set');
+    return;
+  }
   try {
+    console.log('[Tasks] Loading tasks for user:', currentUser._id);
     const res = await fetch(`${API_URL}/users/${currentUser._id}/tasks/requested`, { headers: authHeaders() });
+    if (!res.ok) {
+      console.error('[Tasks] Failed to load tasks:', res.status);
+      return;
+    }
     const data = await res.json();
     window._myTasksCache = data.tasks || [];
+    console.log('[Tasks] Loaded', window._myTasksCache.length, 'tasks');
     renderMyTasks(window._myTasksCache);
-  } catch { }
+  } catch (e) {
+    console.error('[Tasks] Error loading tasks:', e);
+  }
 }
 
 function renderMyTasks(tasks) {
@@ -1418,31 +1508,33 @@ function appendChatMessage(sender, text, ts) {
 
 // Stats
 async function loadStats() {
+  if (!currentUser) {
+    console.error('Cannot load stats: currentUser is not defined');
+    showToast('Please log in to view stats', 'warning');
+    return;
+  }
+  
   try {
     const mres = await fetch(`${API_URL}/users/${currentUser._id}/metrics`, { headers: authHeaders() });
     if (mres.ok) {
       const mdata = await mres.json();
       const m = mdata.metrics;
-      document.getElementById('stat-posted-total').textContent = m.postedTotal;
-      document.getElementById('stat-tasker-earned').textContent = NPR(m.taskerEarned);
-      document.getElementById('stat-completed').textContent = m.taskerCompleted;
-      const feesEl = document.getElementById('stat-fees-pending'); if (feesEl) feesEl.textContent = NPR((m.feesFromMyEarnings ?? 0) || (m.platformFeesPending ?? 0));
+      document.getElementById('stat-posted-total').textContent = m.postedTotal || 0;
+      document.getElementById('stat-tasker-earned').textContent = NPR(m.taskerEarned || 0);
+      document.getElementById('stat-completed').textContent = m.taskerCompleted || 0;
+      const feesEl = document.getElementById('stat-fees-pending'); 
+      if (feesEl) feesEl.textContent = NPR((m.feesFromMyEarnings ?? 0) || (m.platformFeesPending ?? 0));
+    } else {
+      console.error('Failed to load stats:', mres.status, mres.statusText);
+      showToast('Failed to load stats', 'danger');
     }
-  } catch { }
+  } catch (e) {
+    console.error('Error loading stats:', e);
+    showToast('Error loading stats', 'danger');
+  }
 }
 
-// Profile & Wallet
-function showProfile() {
-  if (!currentUser) return;
-  document.getElementById('profile-avatar').textContent = (currentUser.name || currentUser.phone || 'U')[0].toUpperCase();
-  document.getElementById('profile-name').textContent = currentUser.name || 'User';
-  document.getElementById('profile-phone').textContent = currentUser.phone || '';
-  document.getElementById('profile-rating').textContent = (currentUser.ratingAvg || 0).toFixed(1);
-  document.getElementById('profile-tasks').textContent = currentUser.ratingCount || 0;
-  const modal = new bootstrap.Modal(document.getElementById('profileModal'));
-  modal.show();
-}
-
+// Profile & Wallet - moved to profile.html page
 async function showWallet() {
   if (!currentUser) return;
   try {
@@ -1497,7 +1589,6 @@ window.startTask = startTask;
 window.rateTask = rateTask;
 window.openSetLocationModal = openSetLocationModal;
 window.saveTaskerLocation = saveTaskerLocation;
-window.showProfile = showProfile;
 window.showWallet = showWallet;
 window.showToast = showToast;
 
@@ -1534,12 +1625,90 @@ let trackingTaskId = null;
 let locationUpdateInterval = null;
 
 window.openLiveTracking = async function (taskId) {
-  trackingTaskId = taskId;
-  const modal = new bootstrap.Modal(document.getElementById('liveTrackingModal'));
-  modal.show();
+  try {
+    trackingTaskId = taskId;
+    
+    // Fetch task details
+    const taskRes = await fetch(`${API_URL}/tasks/${taskId}`, { headers: authHeaders() });
+    if (!taskRes.ok) {
+      showToast('Failed to load task details', 'danger');
+      return;
+    }
+    
+    const taskData = await taskRes.json();
+    const task = taskData.task;
+    
+    // Populate task info
+    const taskInfo = document.getElementById('task-info-tracking');
+    if (taskInfo) {
+      taskInfo.innerHTML = `
+        <div class="mb-2">
+          <div class="fw-semibold">${task.title || 'Task'}</div>
+          <div class="text-muted small">${task.description || 'No description'}</div>
+        </div>
+        <div class="d-flex justify-content-between mb-1">
+          <span class="text-muted">Status:</span>
+          <span class="badge badge-${task.status}">${task.status}</span>
+        </div>
+        <div class="d-flex justify-content-between mb-1">
+          <span class="text-muted">Price:</span>
+          <span class="fw-semibold text-success">NPR ${task.price || 0}</span>
+        </div>
+        <div class="d-flex justify-content-between">
+          <span class="text-muted">Duration:</span>
+          <span>${task.durationMin || 0} min</span>
+        </div>
+      `;
+    }
+    
+    // Fetch and populate tasker info if assigned
+    if (task.assignedTaskerId) {
+      // Handle if assignedTaskerId is an object (populated) or string (ID)
+      const taskerId = typeof task.assignedTaskerId === 'object' ? task.assignedTaskerId._id : task.assignedTaskerId;
+      const taskerRes = await fetch(`${API_URL}/users/${taskerId}`, { headers: authHeaders() });
+      if (taskerRes.ok) {
+        const taskerData = await taskerRes.json();
+        const tasker = taskerData.user;
+        
+        const taskerInfo = document.getElementById('tasker-info');
+        if (taskerInfo) {
+          taskerInfo.innerHTML = `
+            <div class="d-flex align-items-center mb-2">
+              <div class="profile-avatar me-2" style="width: 40px; height: 40px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold;">
+                ${(tasker.name || tasker.phone || 'T')[0].toUpperCase()}
+              </div>
+              <div>
+                <div class="fw-semibold">${tasker.name || 'Tasker'}</div>
+                <div class="text-muted small">${tasker.phone || ''}</div>
+              </div>
+            </div>
+            <div class="d-flex justify-content-between">
+              <span class="text-muted">Rating:</span>
+              <span class="badge bg-warning text-dark">
+                <i class="bi bi-star-fill"></i> ${(tasker.ratingAvg || 0).toFixed(1)}
+              </span>
+            </div>
+          `;
+        }
+      }
+    } else {
+      const taskerInfo = document.getElementById('tasker-info');
+      if (taskerInfo) {
+        taskerInfo.innerHTML = '<p class="text-muted mb-0">No tasker assigned yet</p>';
+      }
+    }
+    
+    // Open modal
+    const modal = new bootstrap.Modal(document.getElementById('liveTrackingModal'));
+    modal.show();
 
-  setTimeout(() => initLiveTrackingMap(taskId), 300);
-  startLocationSharing(taskId);
+    setTimeout(() => initLiveTrackingMap(taskId), 300);
+    startLocationSharing(taskId);
+    
+  } catch (error) {
+    console.error('Error opening live tracking:', error);
+    showToast('Failed to open live tracking', 'danger');
+  }
 };
 
 function initLiveTrackingMap(taskId) {

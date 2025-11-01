@@ -1,0 +1,185 @@
+<!-- Post Task Modal -->
+<div class="modal fade" id="postTaskModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-plus-circle"></i> Post New Task</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="create-task-form">
+                    <div class="mb-3"><label>Task Title</label><input type="text" class="form-control" id="task-title" required placeholder="e.g., Buy groceries"></div>
+                    <div class="mb-3"><label>Description</label><textarea class="form-control" id="task-description" rows="3"></textarea></div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label>Category</label>
+                            <select class="form-select" id="task-category" required onchange="onCategoryChange()"><option value="">Loading...</option></select>
+                            <input type="text" class="form-control mt-2 hidden" id="task-category-custom" placeholder="Describe your task category (e.g., Furniture moving)">
+                        </div>
+                        <div class="col-md-6 mb-3"><label>Price (NPR)</label><input type="number" class="form-control" id="task-price" required></div>
+                    </div>
+                    <div class="mb-3"><label>Duration (minutes)</label><input type="number" class="form-control" id="task-duration" value="30" min="0"></div>
+                    <div class="mb-3">
+                        <label>Location</label>
+                        <div class="d-flex gap-2 mb-2">
+                            <button type="button" class="btn btn-sm btn-outline-primary" onclick="useCurrentLocation()">
+                                <i class="bi bi-crosshair"></i> Use Current Location
+                            </button>
+                        </div>
+                        <div class="position-relative mb-2">
+                            <input type="text" class="form-control" id="map-location-search" placeholder="Search for a location (min 4 characters)..." autocomplete="off">
+                            <div id="map-search-dropdown" class="hidden position-absolute w-100 bg-white border rounded shadow-sm mt-1" style="max-height: 200px; overflow-y: auto; z-index: 1000;"></div>
+                        </div>
+                        <div id="map" style="height: 350px; border-radius: .75rem; border: 1px solid #e5e7eb"></div>
+                        <small class="text-muted">Lat <span id="selected-lat">-</span>, Lng <span id="selected-lng">-</span></small>
+                    </div>
+                    <div class="mb-3"><label>Radius (km)</label><input type="number" class="form-control" id="task-radius" value="3"></div>
+                    <button type="submit" class="btn btn-primary w-100"><i class="bi bi-send"></i> Post Task</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Demo Checkout Modal -->
+<div class="modal fade" id="demoCheckoutModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-credit-card"></i> Demo Payment</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="d-flex align-items-center gap-2 mb-3">
+                    <img src="/logo.png" alt="KP" style="height:28px;width:28px;border-radius:6px;object-fit:cover">
+                    <div>
+                        <div id="demo-checkout-title" class="fw-semibold">Task</div>
+                        <div class="text-muted small">KaamParyo</div>
+                    </div>
+                </div>
+                <div class="border rounded p-3 d-flex justify-content-between align-items-center">
+                    <div class="text-muted">Amount</div>
+                    <div id="demo-checkout-amount" class="fw-bold">NPR 0</div>
+                </div>
+                <p class="small text-muted mt-3 mb-0">This is a demo-only checkout for hackathon showcase. No real money is moved.</p>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline-danger" onclick="simulateCheckoutFail()"><i class="bi bi-x-circle"></i> Fail</button>
+                <button class="btn btn-primary" onclick="simulateCheckoutSuccess()"><i class="bi bi-check-circle"></i> Pay</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Task Modal -->
+<div class="modal fade" id="editTaskModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-pencil-square"></i> Edit Task</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3"><label>Title</label><input type="text" class="form-control" id="edit-title"></div>
+                <div class="mb-3"><label>Description</label><textarea class="form-control" id="edit-description" rows="3"></textarea></div>
+                <div class="row">
+                    <div class="col-6 mb-3"><label>Price (NPR)</label><input type="number" class="form-control" id="edit-price"></div>
+                    <div class="col-6 mb-3"><label>Duration (minutes)</label><input type="number" class="form-control" id="edit-duration"></div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-primary" onclick="saveEditTask()"><i class="bi bi-check"></i> Save</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Chat Modal -->
+<div class="modal fade" id="chatModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-chat-dots"></i> Chat</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" style="min-height: 400px;">
+                <div id="chat-messages"></div>
+            </div>
+            <div class="modal-footer">
+                <div class="input-group">
+                    <input type="text" id="chat-input" class="form-control" placeholder="Type..." onkeypress="if(event.key==='Enter')sendChatMessage()">
+                    <button class="btn btn-primary" onclick="sendChatMessage()"><i class="bi bi-send"></i></button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Live Tracking Modal -->
+<div class="modal fade" id="liveTrackingModal" tabindex="-1">
+    <div class="modal-dialog modal-fullscreen">
+        <div class="modal-content">
+            <div class="modal-header bg-dark text-white">
+                <h5 class="modal-title"><i class="bi bi-geo-alt-fill"></i> Live Tracking</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-0">
+                <div id="live-tracking-map" style="height: calc(100vh - 200px);"></div>
+                <div class="position-absolute bottom-0 start-0 end-0 bg-white border-top p-3" style="z-index: 1000;">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-body">
+                                    <h6 class="card-title"><i class="bi bi-person-circle"></i> Tasker Info</h6>
+                                    <div id="tasker-info"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-body">
+                                    <h6 class="card-title"><i class="bi bi-clipboard-check"></i> Task Info</h6>
+                                    <div id="task-info-tracking"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Set Location Modal -->
+<div class="modal fade" id="setLocationModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-geo"></i> Set Location & Radius</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="d-flex gap-2 mb-2">
+                    <button type="button" class="btn btn-sm btn-outline-primary" onclick="useTaskerCurrentLocation()">
+                        <i class="bi bi-crosshair"></i> Use Current Location
+                    </button>
+                </div>
+                <div class="position-relative mb-2">
+                    <input type="text" class="form-control" id="tasker-location-search" placeholder="Search for a location (min 4 characters)..." autocomplete="off">
+                    <div id="tasker-search-dropdown" class="hidden position-absolute w-100 bg-white border rounded shadow-sm mt-1" style="max-height: 200px; overflow-y: auto; z-index: 1000;"></div>
+                </div>
+                <div id="tasker-map" style="height: 350px; border-radius: .75rem; border: 1px solid #e5e7eb"></div>
+                <div class="d-flex justify-content-between mt-2">
+                    <div class="small text-muted">Lat: <span id="tasker-lat">-</span>, Lng: <span id="tasker-lng">-</span></div>
+                    <div class="d-flex align-items-center gap-2">
+                        <label class="form-label mb-0">Radius (km)</label>
+                        <input type="number" id="tasker-radius" class="form-control" value="5" min="1" max="50" style="width: 100px;">
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-primary" onclick="saveTaskerLocation()"><i class="bi bi-check2"></i> Save</button>
+            </div>
+        </div>
+    </div>
+</div>

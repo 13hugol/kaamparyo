@@ -35,6 +35,11 @@ const UserSchema = new Schema({
   isOnline: { type: Boolean, default: false },
   ratingAvg: { type: Number, default: 0 },
   ratingCount: { type: Number, default: 0 },
+  // Dual-channel ratings
+  ratingAvgAsCustomer: { type: Number, default: 0 },
+  ratingCountAsCustomer: { type: Number, default: 0 },
+  ratingAvgAsTasker: { type: Number, default: 0 },
+  ratingCountAsTasker: { type: Number, default: 0 },
   blockedUserIds: [{ type: Schema.Types.ObjectId, ref: 'User' }],
   wallet: {
     balance: { type: Number, default: 0 },   // paisa

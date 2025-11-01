@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#dc2626">
+    <link rel="icon" href="/logo.png" type="image/png">
+    <title>Profile - KaamParyo</title>
+    
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-light">
+        <div class="container">
+            <a class="navbar-brand d-flex align-items-center gap-2" href="/">
+                <img src="/logo.png" alt="KP" style="height:28px;width:28px;border-radius:6px;object-fit:cover">
+                <span>KaamParyo</span>
+                <small class="text-muted fw-normal ms-1"></small>
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto d-none d-lg-flex">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/"><i class="bi bi-house-door"></i> Home</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="mypost.html"><i class="bi bi-clipboard-check"></i> My Posts</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="available.html"><i class="bi bi-search"></i> Available</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="activity.html"><i class="bi bi-hourglass-split"></i> Active</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="stats.html"><i class="bi bi-graph-up"></i> Stats</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="profile.html"><i class="bi bi-person"></i> Profile</a>
+                    </li>
+                </ul>
+                <ul class="navbar-nav ms-auto align-items-center">
+                    <li class="nav-item">
+                        <button id="online-toggle-btn" class="btn btn-outline-secondary me-2" onclick="toggleOnline()">
+                            <i class="bi bi-toggle-off"></i> Go Online
+                        </button>
+                    </li>
+                    <li class="nav-item">
+                        <div class="dropdown">
+                            <button class="btn btn-light dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                                <i class="bi bi-person-circle"></i> <span id="user-name">User</span>
+                            </button>
+                            <ul class="dropdown-menu dropdown-menu-end">
+                                <li><a class="dropdown-item" href="profile.html"><i class="bi bi-wallet2"></i> Wallet</a></li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li><a class="dropdown-item text-danger" href="#" onclick="logout()"><i class="bi bi-box-arrow-right"></i> Logout</a></li>
+                            </ul>
+                        </div>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <h2 class="mb-4"><i class="bi bi-person-circle"></i> My Profile</h2>
+
+        <div class="row">
+            <div class="col-md-4 mb-4">
+                <div class="card">
+                    <div class="card-body text-center">
+                        <div class="profile-avatar mb-3" id="profile-avatar-display" style="width: 120px; height: 120px; margin: 0 auto; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 48px; color: white; font-weight: bold;">
+                            U
+                        </div>
+                        <h4 id="profile-name-display">User</h4>
+                        <p class="text-muted" id="profile-phone-display">+977 XXXXXXXXXX</p>
+                        
+                        <!-- Dual Channel Rating Section -->
+                        <div class="mb-3">
+                            <h6 class="text-muted mb-3">Ratings</h6>
+                            <div class="row g-2">
+                                <!-- As Customer -->
+                                <div class="col-6">
+                                    <div class="border rounded p-2 text-center" style="background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%);">
+                                        <div class="small text-muted mb-1">As Customer</div>
+                                        <div class="badge bg-primary mb-1" style="font-size: 0.95rem;">
+                                            <i class="bi bi-star-fill"></i> <span id="profile-rating-customer">0.0</span>
+                                        </div>
+                                        <div class="small text-muted">
+                                            <span id="profile-reviews-customer">0</span> reviews
+                                        </div>
+                                    </div>
+                                </div>
+                                <!-- As Tasker -->
+                                <div class="col-6">
+                                    <div class="border rounded p-2 text-center" style="background: linear-gradient(135deg, #f093fb15 0%, #f5576c15 100%);">
+                                        <div class="small text-muted mb-1">As Tasker</div>
+                                        <div class="badge bg-danger mb-1" style="font-size: 0.95rem;">
+                                            <i class="bi bi-star-fill"></i> <span id="profile-rating-tasker">0.0</span>
+                                        </div>
+                                        <div class="small text-muted">
+                                            <span id="profile-reviews-tasker">0</span> reviews
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="text-muted small text-center mt-2">
+                                <span id="profile-completed-display">0</span> tasks completed
+                            </div>
+                        </div>
+                        
+                        <button class="btn btn-outline-primary btn-sm w-100" onclick="showWallet()">
+                            <i class="bi bi-wallet2"></i> View Wallet
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Task Stats Card -->
+                <div class="card mt-3">
+                    <div class="card-body">
+                        <h6 class="card-title mb-3">Task Statistics</h6>
+                        <div class="d-flex justify-content-between mb-2">
+                            <span class="text-muted">Posted:</span>
+                            <strong id="profile-stat-posted">0</strong>
+                        </div>
+                        <div class="d-flex justify-content-between mb-2">
+                            <span class="text-muted">Completed:</span>
+                            <strong id="profile-stat-completed">0</strong>
+                        </div>
+                        <div class="d-flex justify-content-between">
+                            <span class="text-muted">Earned:</span>
+                            <strong id="profile-stat-earned" class="text-success">NPR 0</strong>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-8">
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <h5 class="card-title">Account Information</h5>
+                        <div class="mb-3">
+                            <label class="form-label">Name</label>
+                            <input type="text" class="form-control" id="edit-name" placeholder="Your name">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Phone</label>
+                            <input type="text" class="form-control" id="edit-phone" disabled>
+                        </div>
+                        <button class="btn btn-primary" onclick="updateUserProfile()">
+                            <i class="bi bi-save"></i> Save Changes
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Dual Channel Reviews Card -->
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <h5 class="card-title mb-3">
+                            <i class="bi bi-chat-quote"></i> Recent Reviews
+                        </h5>
+                        
+                        <!-- Tab Navigation -->
+                        <ul class="nav nav-tabs mb-3" role="tablist">
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link active" id="customer-reviews-tab" data-bs-toggle="tab" data-bs-target="#customer-reviews" type="button" role="tab">
+                                    <i class="bi bi-person-badge"></i> As Customer
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="tasker-reviews-tab" data-bs-toggle="tab" data-bs-target="#tasker-reviews" type="button" role="tab">
+                                    <i class="bi bi-tools"></i> As Tasker
+                                </button>
+                            </li>
+                        </ul>
+                        
+                        <!-- Tab Content -->
+                        <div class="tab-content">
+                            <!-- Customer Reviews -->
+                            <div class="tab-pane fade show active" id="customer-reviews" role="tabpanel">
+                                <div id="customer-reviews-list">
+                                    <p class="text-muted text-center">Loading reviews...</p>
+                                </div>
+                            </div>
+                            
+                            <!-- Tasker Reviews -->
+                            <div class="tab-pane fade" id="tasker-reviews" role="tabpanel">
+                                <div id="tasker-reviews-list">
+                                    <p class="text-muted text-center">Loading reviews...</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">Quick Actions</h5>
+                        <div class="d-flex flex-wrap gap-2">
+                            <button class="btn btn-outline-primary" onclick="window.location.href='mypost.html'">
+                                <i class="bi bi-clipboard-check"></i> My Posted Tasks
+                            </button>
+                            <button class="btn btn-outline-success" onclick="window.location.href='activity.html'">
+                                <i class="bi bi-hourglass-split"></i> My Active Tasks
+                            </button>
+                            <button class="btn btn-outline-info" onclick="window.location.href='stats.html'">
+                                <i class="bi bi-graph-up"></i> View Stats
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Mobile Bottom Navigation -->
+    <div class="kp-bottom-nav d-md-none">
+        <button class="kp-nav-item" onclick="window.location.href='/'">
+            <i class="bi bi-house-door"></i>
+            <span>Home</span>
+        </button>
+        <button class="kp-nav-item" onclick="window.location.href='mypost.html'">
+            <i class="bi bi-clipboard-check"></i>
+            <span>My Posts</span>
+        </button>
+        <button class="kp-nav-item" onclick="window.location.href='available.html'">
+            <i class="bi bi-search"></i>
+            <span>Available</span>
+        </button>
+        <button class="kp-nav-item" onclick="window.location.href='activity.html'">
+            <i class="bi bi-hourglass-split"></i>
+            <span>Active</span>
+        </button>
+        <button class="kp-nav-item active" onclick="window.location.href='profile.html'">
+            <i class="bi bi-person-circle"></i>
+            <span>Profile</span>
+        </button>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toast-container" class="position-fixed top-0 end-0 p-3" style="z-index:9999"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.socket.io/4.6.0/socket.io.min.js"></script>
+    <script src="https://gallimap.com/static/dist/js/gallimaps.vector.min.latest.js"></script>
+    <script src="auth-utils.js"></script>
+    <script src="load-modals.js"></script>
+    <script src="galliMapsService.js"></script>
+    <script src="app.js"></script>
+    <script>
+        // Utility function to escape HTML
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        // Load profile on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            if (!window.authUtils.requireAuth()) return;
+            
+            token = window.authUtils.initAuth();
+            
+            // Load cached user data from cookie
+            const cachedUser = window.authUtils.getUser();
+            if (cachedUser) {
+                currentUser = cachedUser;
+                isOnline = !!currentUser.isOnline;
+                
+                // Update UI immediately with cached data
+                loadProfileData();
+            }
+            
+            if (token) {
+                loadUser(); // Refresh user data from server
+                // Reload profile data after server refresh
+                setTimeout(() => loadProfileData(), 500);
+            }
+        });
+
+        async function loadProfileData() {
+            if (!currentUser) return;
+            
+            // Update profile display
+            const avatar = document.getElementById('profile-avatar-display');
+            if (avatar) avatar.textContent = (currentUser.name || currentUser.phone || 'U')[0].toUpperCase();
+            
+            const name = document.getElementById('profile-name-display');
+            if (name) name.textContent = currentUser.name || 'User';
+            
+            const phone = document.getElementById('profile-phone-display');
+            if (phone) phone.textContent = currentUser.phone || '';
+            
+            // Update dual-channel ratings
+            const ratingCustomer = document.getElementById('profile-rating-customer');
+            if (ratingCustomer) ratingCustomer.textContent = (currentUser.ratingAvgAsCustomer || 0).toFixed(1);
+            
+            const reviewsCustomer = document.getElementById('profile-reviews-customer');
+            if (reviewsCustomer) reviewsCustomer.textContent = currentUser.ratingCountAsCustomer || 0;
+            
+            const ratingTasker = document.getElementById('profile-rating-tasker');
+            if (ratingTasker) ratingTasker.textContent = (currentUser.ratingAvgAsTasker || 0).toFixed(1);
+            
+            const reviewsTasker = document.getElementById('profile-reviews-tasker');
+            if (reviewsTasker) reviewsTasker.textContent = currentUser.ratingCountAsTasker || 0;
+
+            // Update edit form
+            const editName = document.getElementById('edit-name');
+            if (editName) editName.value = currentUser.name || '';
+            
+            const editPhone = document.getElementById('edit-phone');
+            if (editPhone) editPhone.value = currentUser.phone || '';
+            
+            // Load stats and reviews
+            await loadProfileStats();
+            await loadRecentReviews();
+        }
+        
+        async function loadProfileStats() {
+            if (!currentUser) return;
+            
+            try {
+                const res = await fetch(`${API_URL}/users/${currentUser._id}/metrics`, { headers: authHeaders() });
+                if (res.ok) {
+                    const data = await res.json();
+                    const m = data.metrics;
+                    
+                    // Update task stats
+                    document.getElementById('profile-stat-posted').textContent = m.postedTotal || 0;
+                    document.getElementById('profile-stat-completed').textContent = m.taskerCompleted || 0;
+                    document.getElementById('profile-stat-earned').textContent = NPR(m.taskerEarned || 0);
+                    document.getElementById('profile-completed-display').textContent = m.taskerCompleted || 0;
+                }
+            } catch (e) {
+                console.error('Failed to load profile stats:', e);
+            }
+        }
+        
+        async function loadRecentReviews() {
+            if (!currentUser) return;
+            
+            // Load reviews as customer
+            await loadReviewsByType('customer');
+            
+            // Load reviews as tasker
+            await loadReviewsByType('tasker');
+        }
+        
+        async function loadReviewsByType(type) {
+            if (!currentUser) return;
+            
+            const reviewsList = document.getElementById(`${type}-reviews-list`);
+            
+            try {
+                const res = await fetch(`${API_URL}/users/${currentUser._id}/reviews?type=${type}&limit=5`, { headers: authHeaders() });
+                
+                if (!res.ok) {
+                    reviewsList.innerHTML = '<p class="text-muted text-center">Unable to load reviews</p>';
+                    return;
+                }
+                
+                const data = await res.json();
+                const reviews = data.reviews || [];
+                
+                if (reviews.length === 0) {
+                    reviewsList.innerHTML = `<p class="text-muted text-center">No reviews as ${type} yet</p>`;
+                    return;
+                }
+                
+                reviewsList.innerHTML = reviews.map(review => {
+                    const stars = '⭐'.repeat(review.rating);
+                    const date = new Date(review.createdAt).toLocaleDateString();
+                    const reviewerName = review.reviewerName || 'Anonymous';
+                    const taskTitle = review.taskTitle || 'Task';
+                    
+                    return `
+                        <div class="border-bottom pb-3 mb-3">
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <div>
+                                    <strong>${escapeHtml(reviewerName)}</strong>
+                                    <div class="text-warning">${stars} <span class="text-muted small">(${review.rating}/5)</span></div>
+                                    <div class="text-muted small"><i class="bi bi-clipboard"></i> ${escapeHtml(taskTitle)}</div>
+                                </div>
+                                <small class="text-muted">${date}</small>
+                            </div>
+                            ${review.comment ? `<p class="mb-0 text-muted small">"${escapeHtml(review.comment)}"</p>` : '<p class="mb-0 text-muted small fst-italic">No comment</p>'}
+                        </div>
+                    `;
+                }).join('');
+                
+            } catch (e) {
+                console.error(`Failed to load ${type} reviews:`, e);
+                reviewsList.innerHTML = '<p class="text-danger text-center">Failed to load reviews</p>';
+            }
+        }
+
+        async function updateUserProfile() {
+            const name = document.getElementById('edit-name').value.trim();
+            if (!name) {
+                showToast('Please enter your name', 'warning');
+                return;
+            }
+
+            try {
+                const res = await fetch(`${API_URL}/auth/me`, {
+                    method: 'PUT',
+                    headers: authHeaders({ 'Content-Type': 'application/json' }),
+                    body: JSON.stringify({ name })
+                });
+
+                if (res.ok) {
+                    showToast('Profile updated successfully', 'success');
+                    await loadUser();
+                    loadProfileData();
+                } else {
+                    showToast('Failed to update profile', 'danger');
+                }
+            } catch (e) {
+                showToast('Error: ' + e.message, 'danger');
+            }
+        }
+    </script>
+</body>
+</html>

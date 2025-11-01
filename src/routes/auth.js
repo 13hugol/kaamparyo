@@ -77,6 +77,9 @@ router.post('/verify-otp', async (req, res) => {
 router.get('/me', authMiddleware, async (req, res) => {
   const user = getUser(req);
   const fullUser = await User.findById(user._id).select('-__v');
+  if (!fullUser) {
+    return res.status(404).json({ error: 'User not found' });
+  }
   res.json({ ok: true, user: fullUser });
 });
 
