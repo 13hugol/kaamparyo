@@ -65,7 +65,21 @@
     <div class="container mt-4">
         <h2 class="mb-4"><i class="bi bi-search"></i> Available Tasks</h2>
 
-        <div class="card mb-3">
+        <!-- KYC Required Alert -->
+        <div id="kyc-required-alert" class="alert alert-warning hidden">
+            <div class="d-flex align-items-center">
+                <i class="bi bi-shield-exclamation fs-3 me-3"></i>
+                <div class="flex-grow-1">
+                    <h5 class="alert-heading mb-1">KYC Verification Required</h5>
+                    <p class="mb-2">You must complete KYC verification before you can view and apply for available tasks.</p>
+                    <a href="profile.html" class="btn btn-warning btn-sm">
+                        <i class="bi bi-shield-check"></i> Complete KYC Now
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <div class="card mb-3" id="available-tasks-controls">
             <div class="card-body">
                 <div class="row align-items-center g-2">
                     <div class="col-md-6 d-flex align-items-center gap-2 flex-wrap">
@@ -125,6 +139,27 @@
     <script src="galliMapsService.js"></script>
     <script src="app.js"></script>
     <script>
+        // Check KYC status
+        function checkKYCStatus() {
+            if (!currentUser) return false;
+            
+            const kycCompleted = currentUser.kycCompleted || false;
+            const kycAlert = document.getElementById('kyc-required-alert');
+            const tasksControls = document.getElementById('available-tasks-controls');
+            const tasksList = document.getElementById('nearby-tasks-list');
+            
+            if (!kycCompleted) {
+                if (kycAlert) kycAlert.classList.remove('hidden');
+                if (tasksControls) tasksControls.classList.add('hidden');
+                if (tasksList) tasksList.innerHTML = '';
+                return false;
+            } else {
+                if (kycAlert) kycAlert.classList.add('hidden');
+                if (tasksControls) tasksControls.classList.remove('hidden');
+                return true;
+            }
+        }
+        
         // Load tasks on page load
         document.addEventListener('DOMContentLoaded', () => {
             if (!window.authUtils.requireAuth()) return;
@@ -135,6 +170,8 @@
             const cachedUser = window.authUtils.getUser();
             if (cachedUser) {
                 currentUser = cachedUser;
+                checkKYCStatus();
+                currentUser = cachedUser;
                 isOnline = !!currentUser.isOnline;
                 
                 const userName = document.getElementById('user-name');
@@ -142,11 +179,13 @@
             }
             
             if (token) {
-                loadUser();
-                // Auto-load if location is set
-                if (taskerLocation) {
-                    loadNearbyTasks();
-                }
+                loadUser().then(() => {
+                    checkKYCStatus();
+                    // Auto-load if location is set and KYC is complete
+                    if (taskerLocation && currentUser && currentUser.kycCompleted) {
+                        loadNearbyTasks();
+                    }
+                });
             }
         });
     </script>

@@ -1369,6 +1369,12 @@ ${task.proofUrl ? (/(\.mp4|\.webm|\.mov)$/i.test(task.proofUrl) ? `<video src=\"
 
 // Nearby Tasks
 async function loadNearbyTasks() {
+  // Check KYC status
+  if (currentUser && !currentUser.kycCompleted) {
+    showToast('Please complete KYC verification to view available tasks', 'warning');
+    return;
+  }
+  
   if (!taskerLocation) return showToast('Set your location first', 'warning');
   try {
     const url = `${API_URL}/tasks/nearby?lat=${taskerLocation.lat}&lng=${taskerLocation.lng}&radiusKm=${taskerSearchRadiusKm}`;
@@ -1751,8 +1757,8 @@ async function viewApplicants(taskId) {
             <div class="card-body">
               <div class="d-flex justify-content-between align-items-start mb-3">
                 <div class="d-flex align-items-center gap-3">
-                  <div class="profile-avatar" style="width: 50px; height: 50px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 20px;">
-                    ${(applicant.name || applicant.phone || 'T')[0].toUpperCase()}
+                  <div class="profile-avatar" style="width: 50px; height: 50px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 20px; overflow: hidden; ${applicant.profilePhoto ? 'padding: 0;' : ''}">
+                    ${applicant.profilePhoto ? `<img src="${applicant.profilePhoto}" alt="Profile" style="width: 100%; height: 100%; object-fit: cover;">` : (applicant.name || applicant.phone || 'T')[0].toUpperCase()}
                   </div>
                   <div>
                     <h6 class="mb-1">
@@ -1936,8 +1942,8 @@ async function viewTaskDetails(taskId) {
               <div class="card-body">
                 <h6 class="card-title text-muted mb-3">Posted By</h6>
                 <div class="d-flex align-items-center gap-2 mb-2">
-                  <div class="profile-avatar" style="width: 40px; height: 40px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold;">
-                    ${(requester.name || requester.phone || 'U')[0].toUpperCase()}
+                  <div class="profile-avatar" style="width: 40px; height: 40px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; overflow: hidden; ${requester.profilePhoto ? 'padding: 0;' : ''}">
+                    ${requester.profilePhoto ? `<img src="${requester.profilePhoto}" alt="Profile" style="width: 100%; height: 100%; object-fit: cover;">` : (requester.name || requester.phone || 'U')[0].toUpperCase()}
                   </div>
                   <div>
                     <div class="fw-semibold">${requester.name || 'User'}</div>
@@ -2127,8 +2133,8 @@ window.openLiveTracking = async function (taskId) {
         if (taskerInfo) {
           taskerInfo.innerHTML = `
             <div class="d-flex align-items-center mb-2">
-              <div class="profile-avatar me-2" style="width: 40px; height: 40px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold;">
-                ${(tasker.name || tasker.phone || 'T')[0].toUpperCase()}
+              <div class="profile-avatar me-2" style="width: 40px; height: 40px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; overflow: hidden; ${tasker.profilePhoto ? 'padding: 0;' : ''}">
+                ${tasker.profilePhoto ? `<img src="${tasker.profilePhoto}" alt="Profile" style="width: 100%; height: 100%; object-fit: cover;">` : (tasker.name || tasker.phone || 'T')[0].toUpperCase()}
               </div>
               <div>
                 <div class="fw-semibold">${tasker.name || 'Tasker'}</div>

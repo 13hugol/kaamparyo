@@ -69,8 +69,15 @@
             <div class="col-md-4 mb-4">
                 <div class="card">
                     <div class="card-body text-center">
-                        <div class="profile-avatar mb-3" id="profile-avatar-display" style="width: 120px; height: 120px; margin: 0 auto; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 48px; color: white; font-weight: bold;">
-                            U
+                        <div class="position-relative d-inline-block mb-3">
+                            <div class="profile-avatar" id="profile-avatar-display" style="width: 120px; height: 120px; margin: 0 auto; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 48px; color: white; font-weight: bold; overflow: hidden; position: relative;">
+                                <span id="profile-avatar-letter">U</span>
+                                <img id="profile-avatar-img" src="" alt="Profile" style="width: 100%; height: 100%; object-fit: cover; position: absolute; top: 0; left: 0; display: none;">
+                            </div>
+                            <button class="btn btn-sm btn-primary rounded-circle position-absolute" style="bottom: 0; right: 0; width: 36px; height: 36px; padding: 0;" onclick="document.getElementById('profile-pic-input').click()" title="Change profile picture">
+                                <i class="bi bi-camera"></i>
+                            </button>
+                            <input type="file" id="profile-pic-input" accept="image/*" style="display: none;" onchange="uploadProfilePicture(event)">
                         </div>
                         <h4 id="profile-name-display">User</h4>
                         <p class="text-muted" id="profile-phone-display">+977 XXXXXXXXXX</p>
@@ -136,6 +143,108 @@
             </div>
 
             <div class="col-md-8">
+                <!-- KYC Verification Card -->
+                <div class="card mb-3" id="kyc-card">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h5 class="card-title mb-0">
+                                <i class="bi bi-shield-check"></i> KYC Verification
+                            </h5>
+                            <span id="kyc-status-badge" class="badge bg-warning">Pending</span>
+                        </div>
+                        
+                        <div id="kyc-incomplete-alert" class="alert alert-warning">
+                            <i class="bi bi-exclamation-triangle"></i> 
+                            <strong>KYC Required:</strong> Complete your KYC verification to access available tasks and start earning.
+                        </div>
+                        
+                        <div id="kyc-complete-alert" class="alert alert-success hidden">
+                            <i class="bi bi-check-circle"></i> 
+                            <strong>Verified:</strong> Your KYC is complete. You can now access all features.
+                        </div>
+                        
+                        <div id="kyc-form">
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">Full Name <span class="text-danger">*</span></label>
+                                    <input type="text" class="form-control" id="kyc-fullname" placeholder="As per ID">
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">Date of Birth <span class="text-danger">*</span></label>
+                                    <input type="date" class="form-control" id="kyc-dob">
+                                </div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="form-label">Address <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="kyc-address" placeholder="Street address">
+                            </div>
+                            
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">City <span class="text-danger">*</span></label>
+                                    <input type="text" class="form-control" id="kyc-city" placeholder="City">
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">Postal Code</label>
+                                    <input type="text" class="form-control" id="kyc-postal" placeholder="Postal code">
+                                </div>
+                            </div>
+                            
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">ID Type <span class="text-danger">*</span></label>
+                                    <select class="form-select" id="kyc-idtype">
+                                        <option value="">Select ID type</option>
+                                        <option value="citizenship">Citizenship Card</option>
+                                        <option value="passport">Passport</option>
+                                        <option value="license">Driving License</option>
+                                        <option value="voter_id">Voter ID</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">ID Number <span class="text-danger">*</span></label>
+                                    <input type="text" class="form-control" id="kyc-idnumber" placeholder="ID number">
+                                </div>
+                            </div>
+                            
+                            <div class="alert alert-info">
+                                <i class="bi bi-info-circle"></i> 
+                                <strong>Note:</strong> For demo purposes, KYC is auto-approved. In production, admin verification would be required.
+                            </div>
+                            
+                            <button class="btn btn-success" onclick="submitKYC()">
+                                <i class="bi bi-check-circle"></i> Submit KYC Verification
+                            </button>
+                        </div>
+                        
+                        <div id="kyc-info" class="hidden">
+                            <div class="row">
+                                <div class="col-md-6 mb-2">
+                                    <strong>Full Name:</strong>
+                                    <div id="kyc-display-name" class="text-muted">-</div>
+                                </div>
+                                <div class="col-md-6 mb-2">
+                                    <strong>Date of Birth:</strong>
+                                    <div id="kyc-display-dob" class="text-muted">-</div>
+                                </div>
+                                <div class="col-12 mb-2">
+                                    <strong>Address:</strong>
+                                    <div id="kyc-display-address" class="text-muted">-</div>
+                                </div>
+                                <div class="col-md-6 mb-2">
+                                    <strong>ID Type:</strong>
+                                    <div id="kyc-display-idtype" class="text-muted">-</div>
+                                </div>
+                                <div class="col-md-6 mb-2">
+                                    <strong>ID Number:</strong>
+                                    <div id="kyc-display-idnumber" class="text-muted">-</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
                 <div class="card mb-3">
                     <div class="card-body">
                         <h5 class="card-title">Account Information</h5>
@@ -277,12 +386,106 @@
             }
         });
 
+        async function uploadProfilePicture(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            // Validate file type
+            if (!file.type.startsWith('image/')) {
+                showToast('Please select an image file', 'warning');
+                return;
+            }
+            
+            // Validate file size (max 5MB)
+            if (file.size > 5 * 1024 * 1024) {
+                showToast('Image size must be less than 5MB', 'warning');
+                return;
+            }
+            
+            // Show loading state
+            showToast('Uploading profile picture...', 'info');
+            
+            // Compress and convert to base64
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                // Create image element to compress
+                const img = new Image();
+                img.onload = async () => {
+                    // Create canvas for compression
+                    const canvas = document.createElement('canvas');
+                    const ctx = canvas.getContext('2d');
+                    
+                    // Calculate new dimensions (max 400x400)
+                    let width = img.width;
+                    let height = img.height;
+                    const maxSize = 400;
+                    
+                    if (width > height) {
+                        if (width > maxSize) {
+                            height *= maxSize / width;
+                            width = maxSize;
+                        }
+                    } else {
+                        if (height > maxSize) {
+                            width *= maxSize / height;
+                            height = maxSize;
+                        }
+                    }
+                    
+                    canvas.width = width;
+                    canvas.height = height;
+                    
+                    // Draw and compress
+                    ctx.drawImage(img, 0, 0, width, height);
+                    const base64Image = canvas.toDataURL('image/jpeg', 0.8); // 80% quality
+                    
+                    try {
+                        const res = await fetch(`${API_URL}/auth/me`, {
+                            method: 'PUT',
+                            headers: authHeaders({ 'Content-Type': 'application/json' }),
+                            body: JSON.stringify({ profilePhoto: base64Image })
+                        });
+                        
+                        if (res.ok) {
+                            showToast('Profile picture updated!', 'success');
+                            await loadUser();
+                            loadProfileData();
+                        } else {
+                            showToast('Failed to update profile picture', 'danger');
+                        }
+                    } catch (e) {
+                        showToast('Error: ' + e.message, 'danger');
+                    }
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+        
+        window.uploadProfilePicture = uploadProfilePicture;
+        
         async function loadProfileData() {
             if (!currentUser) return;
             
             // Update profile display
-            const avatar = document.getElementById('profile-avatar-display');
-            if (avatar) avatar.textContent = (currentUser.name || currentUser.phone || 'U')[0].toUpperCase();
+            const avatarLetter = document.getElementById('profile-avatar-letter');
+            const avatarImg = document.getElementById('profile-avatar-img');
+            
+            if (currentUser.profilePhoto) {
+                // Show image
+                if (avatarImg) {
+                    avatarImg.src = currentUser.profilePhoto;
+                    avatarImg.style.display = 'block';
+                }
+                if (avatarLetter) avatarLetter.style.display = 'none';
+            } else {
+                // Show letter
+                if (avatarLetter) {
+                    avatarLetter.textContent = (currentUser.name || currentUser.phone || 'U')[0].toUpperCase();
+                    avatarLetter.style.display = 'flex';
+                }
+                if (avatarImg) avatarImg.style.display = 'none';
+            }
             
             const name = document.getElementById('profile-name-display');
             if (name) name.textContent = currentUser.name || 'User';
@@ -313,7 +516,100 @@
             // Load stats and reviews
             await loadProfileStats();
             await loadRecentReviews();
+            loadKYCData();
         }
+        
+        function loadKYCData() {
+            if (!currentUser) return;
+            
+            const kycCompleted = currentUser.kycCompleted || false;
+            const kycData = currentUser.kycData || {};
+            
+            // Update status badge
+            const statusBadge = document.getElementById('kyc-status-badge');
+            if (statusBadge) {
+                if (kycCompleted) {
+                    statusBadge.textContent = 'Verified';
+                    statusBadge.className = 'badge bg-success';
+                } else {
+                    statusBadge.textContent = 'Pending';
+                    statusBadge.className = 'badge bg-warning';
+                }
+            }
+            
+            // Show/hide alerts
+            const incompleteAlert = document.getElementById('kyc-incomplete-alert');
+            const completeAlert = document.getElementById('kyc-complete-alert');
+            const kycForm = document.getElementById('kyc-form');
+            const kycInfo = document.getElementById('kyc-info');
+            
+            if (kycCompleted) {
+                if (incompleteAlert) incompleteAlert.classList.add('hidden');
+                if (completeAlert) completeAlert.classList.remove('hidden');
+                if (kycForm) kycForm.classList.add('hidden');
+                if (kycInfo) kycInfo.classList.remove('hidden');
+                
+                // Display KYC data
+                document.getElementById('kyc-display-name').textContent = kycData.fullName || '-';
+                document.getElementById('kyc-display-dob').textContent = kycData.dateOfBirth ? new Date(kycData.dateOfBirth).toLocaleDateString() : '-';
+                document.getElementById('kyc-display-address').textContent = `${kycData.address || ''}, ${kycData.city || ''}`.trim() || '-';
+                document.getElementById('kyc-display-idtype').textContent = kycData.idType || '-';
+                document.getElementById('kyc-display-idnumber').textContent = kycData.idNumber || '-';
+            } else {
+                if (incompleteAlert) incompleteAlert.classList.remove('hidden');
+                if (completeAlert) completeAlert.classList.add('hidden');
+                if (kycForm) kycForm.classList.remove('hidden');
+                if (kycInfo) kycInfo.classList.add('hidden');
+                
+                // Pre-fill form if data exists
+                if (kycData.fullName) document.getElementById('kyc-fullname').value = kycData.fullName;
+                if (kycData.dateOfBirth) document.getElementById('kyc-dob').value = kycData.dateOfBirth.split('T')[0];
+                if (kycData.address) document.getElementById('kyc-address').value = kycData.address;
+                if (kycData.city) document.getElementById('kyc-city').value = kycData.city;
+                if (kycData.postalCode) document.getElementById('kyc-postal').value = kycData.postalCode;
+                if (kycData.idType) document.getElementById('kyc-idtype').value = kycData.idType;
+                if (kycData.idNumber) document.getElementById('kyc-idnumber').value = kycData.idNumber;
+            }
+        }
+        
+        async function submitKYC() {
+            const kycData = {
+                fullName: document.getElementById('kyc-fullname').value.trim(),
+                dateOfBirth: document.getElementById('kyc-dob').value,
+                address: document.getElementById('kyc-address').value.trim(),
+                city: document.getElementById('kyc-city').value.trim(),
+                postalCode: document.getElementById('kyc-postal').value.trim(),
+                idType: document.getElementById('kyc-idtype').value,
+                idNumber: document.getElementById('kyc-idnumber').value.trim()
+            };
+            
+            // Validation
+            if (!kycData.fullName || !kycData.dateOfBirth || !kycData.address || !kycData.city || !kycData.idType || !kycData.idNumber) {
+                showToast('Please fill all required fields', 'warning');
+                return;
+            }
+            
+            try {
+                const res = await fetch(`${API_URL}/auth/kyc`, {
+                    method: 'POST',
+                    headers: authHeaders({ 'Content-Type': 'application/json' }),
+                    body: JSON.stringify(kycData)
+                });
+                
+                if (res.ok) {
+                    showToast('KYC submitted successfully! You can now access available tasks.', 'success');
+                    await loadUser();
+                    loadProfileData();
+                } else {
+                    const data = await res.json();
+                    showToast(data.error || 'Failed to submit KYC', 'danger');
+                }
+            } catch (e) {
+                showToast('Error: ' + e.message, 'danger');
+            }
+        }
+        
+        window.submitKYC = submitKYC;
         
         async function loadProfileStats() {
             if (!currentUser) return;

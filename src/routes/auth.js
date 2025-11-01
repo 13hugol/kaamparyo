@@ -104,4 +104,41 @@ router.put('/me', authMiddleware, async (req, res) => {
   res.json({ ok: true, user: updated });
 });
 
+// Submit KYC
+router.post('/kyc', authMiddleware, async (req, res) => {
+  try {
+    const user = getUser(req);
+    const { fullName, dateOfBirth, address, city, postalCode, idType, idNumber } = req.body;
+    
+    // Validation
+    if (!fullName || !dateOfBirth || !address || !city || !idType || !idNumber) {
+      return res.status(400).json({ error: 'All required fields must be filled' });
+    }
+    
+    // Update user with KYC data
+    const updatedUser = await User.findByIdAndUpdate(
+      user._id,
+      {
+        kycCompleted: true, // Auto-approve for demo
+        kycSubmittedAt: new Date(),
+        kycData: {
+          fullName,
+          dateOfBirth: new Date(dateOfBirth),
+          address,
+          city,
+          postalCode,
+          idType,
+          idNumber
+        }
+      },
+      { new: true }
+    );
+    
+    res.json({ ok: true, user: updatedUser });
+  } catch (error) {
+    console.error('KYC submission error:', error);
+    res.status(500).json({ error: 'Failed to submit KYC' });
+  }
+});
+
 module.exports = router;

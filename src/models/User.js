@@ -15,6 +15,23 @@ const UserSchema = new Schema({
   isProfessional: { type: Boolean, default: false }, // Verified professional tasker
   professionalVerifiedAt: { type: Date },
   professionalVerifiedBy: { type: Schema.Types.ObjectId, ref: 'User' }, // Admin who verified
+  
+  // KYC Information
+  kycCompleted: { type: Boolean, default: false },
+  kycSubmittedAt: { type: Date },
+  kycData: {
+    fullName: { type: String },
+    dateOfBirth: { type: Date },
+    address: { type: String },
+    city: { type: String },
+    postalCode: { type: String },
+    idType: { type: String, enum: ['citizenship', 'passport', 'license', 'voter_id'] },
+    idNumber: { type: String },
+    idFrontPhoto: { type: String }, // URL to uploaded front photo
+    idBackPhoto: { type: String }, // URL to uploaded back photo
+    selfiePhoto: { type: String } // URL to selfie with ID
+  },
+  
   bio: { type: String, maxlength: 500 },
   languages: [{ type: String }], // e.g., ['English', 'Nepali']
   skills: [{ type: String }], // e.g., ['Plumbing', 'Delivery', 'Cleaning']
