@@ -346,8 +346,14 @@ function connectSocket() {
   socket.on('task_completed', () => { loadMyTasks(); showToast('Task completed', 'info'); playBeep(); });
   socket.on('task_paid', () => { loadMyTasks(); loadMyAcceptedTasks(); showToast('Payment captured', 'success'); playBeep(); });
   socket.on('message', (msg) => {
-    if (activeChatTaskId && msg.taskId === activeChatTaskId) appendChatMessage(msg.from === currentUser._id ? 'You' : 'Them', msg.text, msg.createdAt);
-    else { showToast('New chat message', 'info'); playBeep(); }
+    if (activeChatTaskId && msg.taskId === activeChatTaskId) {
+      const isSent = msg.from === currentUser._id;
+      const user = isSent ? currentUser : chatOtherUser;
+      appendChatMessage(user, isSent, msg.text, msg.createdAt);
+    } else { 
+      showToast('New chat message', 'info'); 
+      playBeep(); 
+    }
   });
   socket.on('task_cancelled', (p) => {
     loadMyTasks(); loadMyAcceptedTasks();
@@ -1352,6 +1358,17 @@ function renderMyTasks(tasks) {
         </div>
         <div class="task-price">${NPR(task.price)}</div>
       </div>
+      ${task.assignedTaskerId ? `
+        <div class="mt-2 d-flex align-items-center gap-2 p-2 bg-light rounded">
+          <div class="profile-avatar" style="width: 32px; height: 32px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 14px; overflow: hidden; ${task.assignedTaskerId.profilePhoto ? 'padding: 0;' : ''}">
+            ${task.assignedTaskerId.profilePhoto ? `<img src="${task.assignedTaskerId.profilePhoto}" alt="Tasker" style="width: 100%; height: 100%; object-fit: cover;">` : (task.assignedTaskerId.name || task.assignedTaskerId.phone || 'T')[0].toUpperCase()}
+          </div>
+          <div class="small">
+            <div class="fw-semibold">${task.assignedTaskerId.name || 'Tasker'}</div>
+            <div class="text-muted">${task.assignedTaskerId.phone || ''}</div>
+          </div>
+        </div>
+      ` : ''}
       <div class="mt-2 d-flex gap-2 flex-wrap">
         ${task.status === 'posted' ? `<button class=\"btn btn-primary btn-sm\" onclick=\"viewApplicants('${task._id}')\"><i class=\"bi bi-people\"></i> Applicants ${task.applicationCount > 0 ? `<span class=\"badge bg-light text-dark\">${task.applicationCount}</span>` : ''}</button>` : ''}
         ${task.status === 'posted' ? `<button class=\"btn btn-outline-secondary btn-sm\" onclick=\"openEditTask('${task._id}')\">Edit</button>` : ''}
@@ -1436,6 +1453,17 @@ async function loadMyAcceptedTasks() {
           </div>
           <div class="task-price">${NPR(task.price)}</div>
         </div>
+        ${task.requesterId ? `
+          <div class="mt-2 d-flex align-items-center gap-2 p-2 bg-light rounded">
+            <div class="profile-avatar" style="width: 32px; height: 32px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 14px; overflow: hidden; ${task.requesterId.profilePhoto ? 'padding: 0;' : ''}">
+              ${task.requesterId.profilePhoto ? `<img src="${task.requesterId.profilePhoto}" alt="Requester" style="width: 100%; height: 100%; object-fit: cover;">` : (task.requesterId.name || task.requesterId.phone || 'R')[0].toUpperCase()}
+            </div>
+            <div class="small">
+              <div class="fw-semibold">${task.requesterId.name || 'Requester'}</div>
+              <div class="text-muted">${task.requesterId.phone || ''}</div>
+            </div>
+          </div>
+        ` : ''}
         <div class="mt-2 d-flex gap-2 flex-wrap">
           ${task.status === 'accepted' ? `<button class="btn btn-secondary btn-sm" onclick="startTask('${task._id}')">Start</button>` : ''}
           ${['accepted', 'in_progress'].includes(task.status) ? `<button class="btn btn-danger btn-sm" onclick="openLiveTracking('${task._id}')"><i class="bi bi-broadcast"></i> Share Location</button>` : ''}
@@ -1528,9 +1556,28 @@ async function rateTask(taskId) {
 }
 
 // Chat
+let chatTaskData = null;
+let chatOtherUser = null;
+
 async function openChat(taskId) {
   activeChatTaskId = taskId;
   document.getElementById('chat-messages').innerHTML = '';
+  
+  // Fetch task details to get other user info
+  try {
+    const taskRes = await fetch(`${API_URL}/tasks/${taskId}`, { headers: authHeaders() });
+    if (taskRes.ok) {
+      const taskData = await taskRes.json();
+      chatTaskData = taskData.task;
+      
+      // Determine who the other user is
+      const isRequester = chatTaskData.requesterId._id === currentUser._id;
+      chatOtherUser = isRequester ? chatTaskData.assignedTaskerId : chatTaskData.requesterId;
+    }
+  } catch (e) {
+    console.error('Failed to load task details for chat:', e);
+  }
+  
   const modal = new bootstrap.Modal(document.getElementById('chatModal'));
   modal.show();
   await loadChatMessages(taskId);
@@ -1540,7 +1587,11 @@ async function loadChatMessages(taskId) {
   try {
     const res = await fetch(`${API_URL}/tasks/${taskId}/messages`, { headers: authHeaders() });
     const data = await res.json();
-    (data.messages || []).forEach(m => appendChatMessage(m.from === currentUser._id ? 'You' : 'Them', m.text, m.createdAt));
+    (data.messages || []).forEach(m => {
+      const isSent = m.from === currentUser._id;
+      const user = isSent ? currentUser : chatOtherUser;
+      appendChatMessage(user, isSent, m.text, m.createdAt);
+    });
   } catch { }
 }
 
@@ -1552,12 +1603,30 @@ async function sendChatMessage() {
   } catch (e) { showToast(e.message, 'danger'); }
 }
 
-function appendChatMessage(sender, text, ts) {
+function appendChatMessage(user, isSent, text, ts) {
   const wrap = document.createElement('div');
-  const sent = sender === 'You';
-  wrap.className = `chat-message ${sent ? 'chat-message-sent' : 'chat-message-received'}`;
-  wrap.innerHTML = `<div><strong>${sender}:</strong> ${escapeHtml(text)}</div><div class="chat-time">${new Date(ts).toLocaleTimeString()}</div>`;
-  const cont = document.getElementById('chat-messages'); cont.appendChild(wrap); cont.scrollTop = cont.scrollHeight;
+  wrap.className = `chat-message ${isSent ? 'chat-message-sent' : 'chat-message-received'}`;
+  
+  const userName = user ? (user.name || user.phone || 'User') : 'User';
+  const userPhoto = user && user.profilePhoto;
+  const avatarLetter = userName[0].toUpperCase();
+  
+  wrap.innerHTML = `
+    <div class="d-flex gap-2 ${isSent ? 'flex-row-reverse' : ''}">
+      <div class="profile-avatar" style="width: 32px; height: 32px; min-width: 32px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 14px; overflow: hidden; ${userPhoto ? 'padding: 0;' : ''}">
+        ${userPhoto ? `<img src="${userPhoto}" alt="${userName}" style="width: 100%; height: 100%; object-fit: cover;">` : avatarLetter}
+      </div>
+      <div class="flex-grow-1">
+        <div class="small text-muted mb-1">${userName}</div>
+        <div class="chat-bubble ${isSent ? 'chat-bubble-sent' : 'chat-bubble-received'}">${escapeHtml(text)}</div>
+        <div class="chat-time">${new Date(ts).toLocaleTimeString()}</div>
+      </div>
+    </div>
+  `;
+  
+  const cont = document.getElementById('chat-messages'); 
+  cont.appendChild(wrap); 
+  cont.scrollTop = cont.scrollHeight;
 }
 
 // Stats
@@ -2477,3 +2546,221 @@ document.getElementById('liveTrackingModal')?.addEventListener('hidden.bs.modal'
   }
 });
 
+
+
+// ========== USER PROFILE VIEWING ==========
+
+async function viewUserProfile(userId) {
+  if (!userId) return;
+  
+  try {
+    const modal = new bootstrap.Modal(document.getElementById('userProfileModal'));
+    modal.show();
+    
+    // Reset modal content
+    document.getElementById('profile-user-name').textContent = 'Loading...';
+    document.getElementById('profile-rating').textContent = '0.0';
+    document.getElementById('profile-tasks-count').textContent = '0 tasks';
+    document.getElementById('profile-phone').textContent = 'Loading...';
+    document.getElementById('profile-reviews').innerHTML = '<div class="text-center text-muted py-3"><i class="bi bi-hourglass-split"></i> Loading reviews...</div>';
+    
+    // Fetch user data
+    const res = await fetch(`${API_URL}/users/${userId}`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    
+    if (!res.ok) throw new Error('Failed to fetch user profile');
+    
+    const data = await res.json();
+    const user = data.user;
+    
+    // Display avatar
+    const avatarDiv = document.getElementById('profile-avatar-display');
+    if (user.profilePicture) {
+      avatarDiv.innerHTML = `<img src="${user.profilePicture}" alt="${user.name}" style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;">`;
+    } else {
+      const initials = user.name ? user.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : '?';
+      avatarDiv.innerHTML = initials;
+      avatarDiv.style.background = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
+    }
+    
+    // Display basic info
+    document.getElementById('profile-user-name').textContent = user.name || 'User';
+    document.getElementById('profile-rating').textContent = (user.ratingAvg || 0).toFixed(1);
+    document.getElementById('profile-tasks-count').textContent = `${user.tasksCompleted || 0} tasks completed`;
+    
+    // Display contact info (masked if not own profile)
+    if (user.phone) {
+      document.getElementById('profile-phone').textContent = user.phone;
+    } else if (user.phoneMasked) {
+      document.getElementById('profile-phone').textContent = user.phoneMasked + ' (Hidden)';
+    } else {
+      document.getElementById('profile-phone').textContent = 'Not available';
+    }
+    
+    // Display email if available
+    const emailSection = document.getElementById('profile-email-section');
+    if (user.email) {
+      emailSection.classList.remove('d-none');
+      document.getElementById('profile-email').textContent = user.email;
+    } else if (user.emailMasked) {
+      emailSection.classList.remove('d-none');
+      document.getElementById('profile-email').textContent = user.emailMasked + ' (Hidden)';
+    } else {
+      emailSection.classList.add('d-none');
+    }
+    
+    // Display professional badge
+    const badgeDiv = document.getElementById('profile-professional-badge');
+    if (user.isProfessional) {
+      badgeDiv.innerHTML = '<span class="badge bg-success"><i class="bi bi-patch-check-fill"></i> Professional</span>';
+    } else {
+      badgeDiv.innerHTML = '';
+    }
+    
+    // Display professional info
+    const professionalSection = document.getElementById('profile-professional-section');
+    if (user.isProfessional && (user.skills?.length > 0 || user.certificates?.length > 0)) {
+      professionalSection.classList.remove('d-none');
+      
+      // Display skills
+      const skillsDiv = document.getElementById('profile-skills');
+      if (user.skills && user.skills.length > 0) {
+        skillsDiv.innerHTML = user.skills.map(skill => 
+          `<span class="badge bg-primary">${skill}</span>`
+        ).join('');
+      } else {
+        skillsDiv.innerHTML = '<span class="text-muted">No skills listed</span>';
+      }
+      
+      // Display certificates
+      const certificatesDiv = document.getElementById('profile-certificates');
+      const certSection = document.getElementById('profile-certificates-section');
+      if (user.certificates && user.certificates.length > 0) {
+        certSection.classList.remove('d-none');
+        certificatesDiv.innerHTML = user.certificates.map(cert => `
+          <div class="border rounded p-2 mb-2">
+            <div class="d-flex justify-content-between align-items-start">
+              <div>
+                <div class="fw-semibold">${cert.name}</div>
+                <small class="text-muted">${cert.organization}</small>
+                ${cert.issueDate ? `<div><small class="text-muted">Issued: ${new Date(cert.issueDate).toLocaleDateString()}</small></div>` : ''}
+              </div>
+              <i class="bi bi-award text-warning" style="font-size: 1.5rem;"></i>
+            </div>
+          </div>
+        `).join('');
+      } else {
+        certSection.classList.add('d-none');
+      }
+    } else {
+      professionalSection.classList.add('d-none');
+    }
+    
+    // Display member since
+    if (user.createdAt) {
+      const memberDate = new Date(user.createdAt);
+      document.getElementById('profile-member-since').textContent = memberDate.toLocaleDateString('en-US', { 
+        year: 'numeric', 
+        month: 'long' 
+      });
+    }
+    
+    // Fetch and display reviews
+    fetchUserReviews(userId);
+    
+  } catch (error) {
+    console.error('Error viewing profile:', error);
+    showToast('Failed to load user profile', 'danger');
+  }
+}
+
+async function fetchUserReviews(userId) {
+  try {
+    const res = await fetch(`${API_URL}/users/${userId}/reviews?limit=5`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    
+    if (!res.ok) throw new Error('Failed to fetch reviews');
+    
+    const data = await res.json();
+    const reviews = data.reviews || [];
+    
+    const reviewsDiv = document.getElementById('profile-reviews');
+    
+    if (reviews.length === 0) {
+      reviewsDiv.innerHTML = '<div class="text-center text-muted py-3"><i class="bi bi-chat-left-quote"></i> No reviews yet</div>';
+      return;
+    }
+    
+    reviewsDiv.innerHTML = reviews.map(review => `
+      <div class="border-bottom pb-3 mb-3">
+        <div class="d-flex justify-content-between align-items-start mb-2">
+          <div>
+            <div class="fw-semibold">${review.reviewerName}</div>
+            <small class="text-muted">${review.taskTitle}</small>
+          </div>
+          <div class="text-warning">
+            ${[...Array(5)].map((_, i) => 
+              `<i class="bi bi-star${i < review.rating ? '-fill' : ''}"></i>`
+            ).join('')}
+          </div>
+        </div>
+        ${review.comment ? `<p class="mb-1 small">${review.comment}</p>` : ''}
+        <small class="text-muted">${new Date(review.createdAt).toLocaleDateString()}</small>
+      </div>
+    `).join('');
+    
+  } catch (error) {
+    console.error('Error fetching reviews:', error);
+    document.getElementById('profile-reviews').innerHTML = 
+      '<div class="text-center text-muted py-3"><i class="bi bi-exclamation-circle"></i> Failed to load reviews</div>';
+  }
+}
+
+
+// Helper function to create clickable user info display
+function createUserInfoCard(user, label = 'User') {
+  if (!user) return '';
+  
+  const initials = user.name ? user.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : '?';
+  const avatarHtml = user.profilePicture 
+    ? `<img src="${user.profilePicture}" alt="${user.name}">`
+    : initials;
+  
+  const professionalBadge = user.isProfessional 
+    ? '<span class="badge bg-success ms-2"><i class="bi bi-patch-check-fill"></i> Pro</span>'
+    : '';
+  
+  return `
+    <div class="user-info-card">
+      <div class="d-flex align-items-center gap-3">
+        <div class="user-avatar">${avatarHtml}</div>
+        <div class="flex-grow-1">
+          <div class="small text-muted">${label}</div>
+          <div>
+            <span class="user-profile-link" onclick="viewUserProfile('${user._id}')">${user.name || user.phone || 'User'}</span>
+            ${professionalBadge}
+          </div>
+          ${user.ratingAvg ? `
+            <div class="small text-warning">
+              <i class="bi bi-star-fill"></i> ${user.ratingAvg.toFixed(1)}
+              ${user.tasksCompleted ? `<span class="text-muted">• ${user.tasksCompleted} tasks</span>` : ''}
+            </div>
+          ` : ''}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// Helper function to create inline clickable user link
+function createUserLink(user) {
+  if (!user) return 'Unknown User';
+  
+  const professionalIcon = user.isProfessional 
+    ? '<i class="bi bi-patch-check-fill text-success"></i> '
+    : '';
+  
+  return `${professionalIcon}<span class="user-profile-link" onclick="viewUserProfile('${user._id}')">${user.name || user.phone || 'User'}</span>`;
+}

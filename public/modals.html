@@ -379,3 +379,90 @@
         </div>
     </div>
 </div>
+
+<!-- User Profile Modal -->
+<div class="modal fade" id="userProfileModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-person-circle"></i> User Profile</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="text-center mb-4">
+                    <div id="profile-avatar-display" class="profile-avatar mx-auto" style="width: 100px; height: 100px; font-size: 40px;">
+                        <!-- Avatar will be inserted here -->
+                    </div>
+                    <h4 class="mt-3 mb-1" id="profile-user-name">Loading...</h4>
+                    <div class="d-flex align-items-center justify-content-center gap-2 mb-2">
+                        <div class="text-warning">
+                            <i class="bi bi-star-fill"></i>
+                            <span id="profile-rating">0.0</span>
+                        </div>
+                        <span class="text-muted">•</span>
+                        <span class="text-muted" id="profile-tasks-count">0 tasks</span>
+                    </div>
+                    <div id="profile-professional-badge"></div>
+                </div>
+
+                <!-- Contact Info -->
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <h6 class="card-title mb-3"><i class="bi bi-telephone"></i> Contact Information</h6>
+                        <div class="mb-2">
+                            <small class="text-muted">Phone:</small>
+                            <div id="profile-phone">Loading...</div>
+                        </div>
+                        <div id="profile-email-section" class="mb-2">
+                            <small class="text-muted">Email:</small>
+                            <div id="profile-email">Loading...</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Professional Info (if professional) -->
+                <div id="profile-professional-section" class="d-none">
+                    <div class="card mb-3">
+                        <div class="card-body">
+                            <h6 class="card-title mb-3"><i class="bi bi-briefcase"></i> Professional Information</h6>
+                            
+                            <div class="mb-3">
+                                <small class="text-muted d-block mb-2">Skills:</small>
+                                <div id="profile-skills" class="d-flex flex-wrap gap-2">
+                                    <!-- Skills badges will be inserted here -->
+                                </div>
+                            </div>
+                            
+                            <div id="profile-certificates-section">
+                                <small class="text-muted d-block mb-2">Certificates:</small>
+                                <div id="profile-certificates">
+                                    <!-- Certificates will be inserted here -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Reviews -->
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <h6 class="card-title mb-3"><i class="bi bi-chat-left-quote"></i> Recent Reviews</h6>
+                        <div id="profile-reviews">
+                            <div class="text-center text-muted py-3">
+                                <i class="bi bi-hourglass-split"></i> Loading reviews...
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Member Since -->
+                <div class="text-center text-muted small">
+                    <i class="bi bi-calendar"></i> Member since <span id="profile-member-since">...</span>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
